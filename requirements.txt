@@ -4,3 +4,4 @@ python-multipart==0.0.12
 pillow==11.1.0
 pillow-heif==1.4.0
 qrcode==7.4.2
+psycopg[binary]==3.2.3
