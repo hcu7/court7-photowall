@@ -27,7 +27,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
@@ -57,6 +57,7 @@ ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 MAX_DIM = int(os.environ.get("MAX_DIM", "2200"))
 JPEG_QUALITY = int(os.environ.get("JPEG_QUALITY", "85"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "40")) * 1024 * 1024
+MAX_COMMENT = 280
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 HIDDEN_DIR.mkdir(parents=True, exist_ok=True)
@@ -79,6 +80,23 @@ def _list_ids(since: str = "") -> list[str]:
         ids = [i for i in ids if i > since]
     ids.sort()
     return ids
+
+
+def _clean_comment(text: str) -> str:
+    # Steuerzeichen raus, Whitespace normalisieren, kappen.
+    text = "".join(ch for ch in text if ch == "\n" or ch >= " ")
+    text = " ".join(text.split())
+    return text[:MAX_COMMENT].strip()
+
+
+def _read_comment(pid: str) -> str:
+    f = UPLOAD_DIR / f"{pid}.txt"
+    if f.exists():
+        try:
+            return f.read_text(encoding="utf-8")[:MAX_COMMENT]
+        except Exception:
+            return ""
+    return ""
 
 
 def _require_admin(token: str) -> None:
@@ -109,7 +127,10 @@ def get_config(request: Request):
 @app.get("/api/photos")
 def get_photos(since: str = Query("")):
     ids = _list_ids(since)
-    return {"photos": [{"id": i, "url": f"/photo/{i}"} for i in ids], "count": len(_list_ids())}
+    return {
+        "photos": [{"id": i, "url": f"/photo/{i}", "comment": _read_comment(i)} for i in ids],
+        "count": len(_list_ids()),
+    }
 
 
 @app.get("/photo/{pid}")
@@ -127,7 +148,7 @@ def get_photo(pid: str):
 
 
 @app.post("/api/upload")
-async def upload(file: UploadFile = File(...)):
+async def upload(file: UploadFile = File(...), comment: str = Form("")):
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Leere Datei")
@@ -145,7 +166,11 @@ async def upload(file: UploadFile = File(...)):
     pid = _new_id()
     out = UPLOAD_DIR / f"{pid}.jpg"
     img.save(out, "JPEG", quality=JPEG_QUALITY, optimize=True)
-    return {"id": pid, "url": f"/photo/{pid}"}
+
+    text = _clean_comment(comment)
+    if text:
+        (UPLOAD_DIR / f"{pid}.txt").write_text(text, encoding="utf-8")
+    return {"id": pid, "url": f"/photo/{pid}", "comment": text}
 
 
 @app.get("/api/admin/check")
@@ -159,7 +184,7 @@ def admin_photos(token: str = Query("")):
     _require_admin(token)
     ids = _list_ids()
     ids.reverse()  # neueste zuerst
-    return {"photos": [{"id": i, "url": f"/photo/{i}"} for i in ids]}
+    return {"photos": [{"id": i, "url": f"/photo/{i}", "comment": _read_comment(i)} for i in ids]}
 
 
 @app.post("/api/photos/{pid}/hide")
@@ -167,15 +192,22 @@ def hide_photo(pid: str, token: str = Query("")):
     _require_admin(token)
     if not ID_RE.match(pid):
         raise HTTPException(status_code=404, detail="Not found")
-    f = UPLOAD_DIR / f"{pid}.jpg"
-    if f.exists():
-        f.rename(HIDDEN_DIR / f"{pid}.jpg")
+    for ext in ("jpg", "txt"):
+        f = UPLOAD_DIR / f"{pid}.{ext}"
+        if f.exists():
+            f.rename(HIDDEN_DIR / f"{pid}.{ext}")
     return {"ok": True}
 
 
 @app.get("/api/qr.png")
-def qr_png(request: Request):
-    target = PUBLIC_URL or str(request.base_url).rstrip("/")
+def qr_png(request: Request, data: str = Query("")):
+    # data erlaubt beliebige Ziel-URL (z.B. Produkt-Link für die TV-Werbung);
+    # nur http/https zulassen. Ohne data -> Upload-URL.
+    data = data.strip()
+    if data.startswith(("http://", "https://")):
+        target = data[:512]
+    else:
+        target = PUBLIC_URL or str(request.base_url).rstrip("/")
     qr = qrcode.QRCode(border=1, box_size=10)
     qr.add_data(target or "/")
     qr.make(fit=True)

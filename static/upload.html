@@ -16,8 +16,7 @@
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     color:var(--ink);
-    background:
-      radial-gradient(1200px 600px at 50% -10%, var(--bg2), transparent 60%),
+    background:radial-gradient(1200px 600px at 50% -10%, var(--bg2), transparent 60%),
       linear-gradient(160deg,var(--bg1),var(--bg2));
     min-height:100dvh;
     padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
@@ -32,7 +31,7 @@
   .card{background:var(--card); border:1px solid var(--line); border-radius:22px;
     box-shadow:0 12px 40px rgba(60,40,10,.10); padding:20px; margin-top:14px}
 
-  ol.steps{margin:0; padding:0 0 0 0; list-style:none; counter-reset:s}
+  ol.steps{margin:0; padding:0; list-style:none; counter-reset:s}
   ol.steps li{counter-increment:s; display:flex; gap:12px; align-items:flex-start; padding:9px 0; font-size:15.5px}
   ol.steps li::before{content:counter(s); flex:0 0 26px; width:26px; height:26px; border-radius:50%;
     background:var(--accent); color:#fff; font-weight:800; font-size:14px; display:grid; place-items:center; margin-top:1px}
@@ -46,27 +45,43 @@
   .btn{display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
     border:0; border-radius:18px; padding:18px 20px; font-size:19px; font-weight:800; cursor:pointer;
     color:#fff; background:linear-gradient(135deg,var(--accent),var(--accent2));
-    box-shadow:0 10px 24px rgba(200,119,47,.35); transition:transform .06s ease, filter .15s}
+    box-shadow:0 10px 24px rgba(200,119,47,.35); transition:transform .06s ease, filter .15s; margin-top:12px}
   .btn:active{transform:scale(.98)}
-  .btn.secondary{background:#fff; color:var(--accent); border:1.5px solid var(--accent); box-shadow:none; font-size:15px; padding:13px}
-  .btn.ghost{background:transparent; color:var(--muted); box-shadow:none; font-weight:600; font-size:14px; padding:10px}
+  .btn.secondary{background:#fff; color:var(--accent); border:1.5px solid var(--accent); box-shadow:none; font-size:16px; padding:15px}
   .btn[disabled]{filter:grayscale(.4) opacity(.6); pointer-events:none}
-  .btnrow{display:flex; gap:10px; margin-top:12px}
-  .btnrow .btn{margin-top:0}
 
-  .preview{position:relative; margin-top:4px; border-radius:18px; overflow:hidden; background:#000; aspect-ratio:4/3}
-  .preview img{width:100%; height:100%; object-fit:contain; display:block}
-  .badge{position:absolute; left:10px; top:10px; background:rgba(0,0,0,.6); color:#fff; font-size:12px;
-    font-weight:700; padding:5px 10px; border-radius:999px; backdrop-filter:blur(6px)}
+  .thumbs{display:grid; gap:8px; grid-template-columns:1fr}
+  .thumbs.multi{grid-template-columns:repeat(3,1fr)}
+  .thumb{position:relative; border-radius:14px; overflow:hidden; background:#000; aspect-ratio:4/3}
+  .thumbs.multi .thumb{aspect-ratio:1}
+  .thumb img{width:100%; height:100%; object-fit:contain; display:block}
+  .thumbs.multi .thumb img{object-fit:cover}
+  .thumb .p{position:absolute; left:6px; top:6px; background:rgba(194,65,12,.92); color:#fff; font-size:10px;
+    font-weight:800; padding:3px 7px; border-radius:999px}
+
+  .field{margin-top:14px}
+  .field label{display:block; font-size:13px; font-weight:700; color:var(--muted); margin-bottom:6px}
+  textarea{width:100%; border:1px solid var(--line); border-radius:14px; padding:12px 14px; font-size:16px;
+    font-family:inherit; color:var(--ink); resize:none; background:#fffdf9; min-height:62px}
+  textarea:focus{outline:none; border-color:var(--accent)}
+  .cc{text-align:right; font-size:12px; color:var(--muted); margin-top:4px}
 
   .warnbar{background:#fff7ed; border:1px solid #fed7aa; color:var(--warn); border-radius:14px;
     padding:11px 13px; font-size:14px; font-weight:600; margin-top:12px; display:none}
   .warnbar.show{display:block}
+  .notice{background:#eef6ff; border:1px solid #bfdbfe; color:#1d4ed8; border-radius:14px;
+    padding:10px 13px; font-size:13.5px; font-weight:600; margin-top:10px; display:none}
+  .notice.show{display:block}
 
-  .progress{height:8px; background:#f0e6d6; border-radius:999px; overflow:hidden; margin-top:14px; display:none}
+  .progress{height:10px; background:#f0e6d6; border-radius:999px; overflow:hidden; margin-top:14px; display:none}
   .progress.show{display:block}
-  .progress > i{display:block; height:100%; width:30%; background:linear-gradient(90deg,var(--accent),var(--accent2));
+  .progress > i{display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent2));
     border-radius:999px; transition:width .25s ease}
+  .pcount{text-align:center; font-size:13px; color:var(--muted); margin-top:8px; display:none}
+  .pcount.show{display:block}
+
+  .btnrow{display:flex; gap:10px}
+  .btnrow .btn{margin-top:0}
 
   .done{text-align:center; padding:8px 4px}
   .done .big{font-size:58px; line-height:1; margin:6px 0 8px}
@@ -102,24 +117,24 @@
         <span>Bitte <b>quer</b> halten — Querformat sieht auf dem Fernseher am besten aus.</span>
       </div>
     </div>
-    <button class="btn" id="btn-capture">📸 Selfie aufnehmen</button>
-    <div class="btnrow">
-      <button class="btn secondary" id="btn-gallery">Aus Galerie wählen</button>
-    </div>
-    <input id="file-capture" type="file" accept="image/*" class="hidden" />
-    <input id="file-gallery" type="file" accept="image/*" class="hidden" />
+    <button class="btn" id="btn-capture">📸 Foto aufnehmen</button>
+    <button class="btn secondary" id="btn-gallery">🖼 Aus Bibliothek hinzufügen</button>
   </section>
 
-  <!-- PREVIEW -->
-  <section id="view-preview" class="hidden">
+  <!-- REVIEW -->
+  <section id="view-review" class="hidden">
     <div class="card">
-      <div class="preview">
-        <img id="prev-img" alt="Vorschau" />
-        <span class="badge" id="orient-badge">Querformat ✓</span>
-      </div>
+      <div class="thumbs" id="thumbs"></div>
       <div class="warnbar" id="warn-portrait">📱 Hochkant erkannt — quer sieht auf dem Fernseher schöner aus. Du kannst es trotzdem hochladen.</div>
+      <div class="notice" id="notice-cap"></div>
+      <div class="field">
+        <label for="comment">Kommentar (optional) — erscheint auf dem Fernseher 📺</label>
+        <textarea id="comment" maxlength="280" rows="2" placeholder="z. B. Beste Tanzpartnerin des Abends! 💃"></textarea>
+        <div class="cc"><span id="cc">0</span>/280</div>
+      </div>
       <div class="progress" id="progress"><i></i></div>
-      <div class="err hidden" id="prev-err"></div>
+      <div class="pcount" id="pcount"></div>
+      <div class="err hidden" id="rev-err"></div>
       <div class="btnrow">
         <button class="btn secondary" id="btn-retry">↺ Neu</button>
         <button class="btn" id="btn-upload">Hochladen ✓</button>
@@ -132,52 +147,62 @@
     <div class="card done">
       <div class="big">🎉</div>
       <h2>Danke!</h2>
-      <p>Dein Foto ist gleich auf dem Fernseher zu sehen.</p>
-      <button class="btn" id="btn-again">Noch ein Selfie</button>
+      <p id="done-msg">Dein Foto ist gleich auf dem Fernseher zu sehen.</p>
+      <button class="btn" id="btn-again-cam">📸 Foto aufnehmen</button>
+      <button class="btn secondary" id="btn-again-lib">🖼 Aus Bibliothek hinzufügen</button>
     </div>
   </section>
 
   <div class="foot" id="foot"></div>
 </div>
 
+<input id="file-capture" type="file" accept="image/*" class="hidden" />
+<input id="file-gallery" type="file" accept="image/*" multiple class="hidden" />
+
 <script>
 const $ = s => document.querySelector(s);
-const views = { start:$('#view-start'), preview:$('#view-preview'), done:$('#view-done') };
+const views = { start:$('#view-start'), review:$('#view-review'), done:$('#view-done') };
 function show(v){ for(const k in views) views[k].classList.toggle('hidden', k!==v); window.scrollTo(0,0); }
 
+const MAX_FILES = 10;
 let CFG = { title:'', frontCamera:true, maxDim:2200, publicUrl:'' };
-let currentBlob = null;
+let items = [];   // { blob, portrait }
 
 fetch('/api/config').then(r=>r.json()).then(c=>{
   CFG = Object.assign(CFG, c);
   $('#title').textContent = c.title || 'Foto-Wall';
   document.title = c.title || 'Foto hochladen';
   if(c.publicUrl) $('#foot').textContent = c.publicUrl.replace(/^https?:\/\//,'');
-  // Frontkamera bevorzugen (Selfie). capture-Attribut steuert die Default-Kamera.
   const cap = $('#file-capture');
   if(c.frontCamera) cap.setAttribute('capture','user'); else cap.setAttribute('capture','environment');
 }).catch(()=>{ $('#title').textContent='Foto-Wall'; });
 
 $('#btn-capture').addEventListener('click', ()=> $('#file-capture').click());
 $('#btn-gallery').addEventListener('click', ()=> $('#file-gallery').click());
-$('#file-capture').addEventListener('change', e=> handleFile(e.target.files[0]));
-$('#file-gallery').addEventListener('change', e=> handleFile(e.target.files[0]));
+$('#btn-again-cam').addEventListener('click', ()=>{ resetToStart(); $('#file-capture').click(); });
+$('#btn-again-lib').addEventListener('click', ()=>{ resetToStart(); $('#file-gallery').click(); });
+$('#file-capture').addEventListener('change', e=> handleFiles(e.target.files));
+$('#file-gallery').addEventListener('change', e=> handleFiles(e.target.files));
 $('#btn-retry').addEventListener('click', resetToStart);
-$('#btn-again').addEventListener('click', resetToStart);
 $('#btn-upload').addEventListener('click', doUpload);
+$('#comment').addEventListener('input', e=> $('#cc').textContent = e.target.value.length);
 
 function resetToStart(){
-  currentBlob = null;
+  items.forEach(it=> it.url && URL.revokeObjectURL(it.url));
+  items = [];
   $('#file-capture').value=''; $('#file-gallery').value='';
-  $('#prev-err').classList.add('hidden');
+  $('#comment').value=''; $('#cc').textContent='0';
+  $('#rev-err').classList.add('hidden');
+  $('#warn-portrait').classList.remove('show');
+  $('#notice-cap').classList.remove('show');
   $('#progress').classList.remove('show'); $('#progress i').style.width='0%';
+  $('#pcount').classList.remove('show');
   $('#btn-upload').disabled=false;
   show('start');
 }
 
 // Bild client-seitig auf maxDim verkleinern + EXIF-Orientierung anwenden.
-// Fällt bei Fehlern (z.B. HEIC, alte Browser) auf den Original-Upload zurück —
-// der Server verarbeitet dann (HEIC + EXIF) selbst.
+// Fällt bei Fehlern (HEIC/alte Browser) auf den Original-Upload zurück.
 async function prepare(file){
   try{
     const bmp = await createImageBitmap(file, { imageOrientation:'from-image' });
@@ -191,65 +216,93 @@ async function prepare(file){
     bmp.close && bmp.close();
     const blob = await new Promise(res=> canvas.toBlob(res,'image/jpeg',0.85));
     if(!blob) throw new Error('toBlob');
-    return { blob, w:cw, h:ch, portrait: ch>cw };
+    return { blob, portrait: ch>cw };
   }catch(err){
-    // Fallback: Original hochladen, Orientierung grob aus naturalWidth ableiten
-    return { blob:file, w:0, h:0, portrait:null, fallback:true };
+    return { blob:file, portrait:null, fallback:true };
   }
 }
 
-async function handleFile(file){
-  if(!file) return;
-  show('preview');
-  $('#prev-err').classList.add('hidden');
-  $('#orient-badge').textContent='…';
-  $('#warn-portrait').classList.remove('show');
-  $('#prev-img').src='';
-  const res = await prepare(file);
-  currentBlob = res.blob;
-  const url = URL.createObjectURL(res.blob);
-  $('#prev-img').src = url;
+async function handleFiles(fileList){
+  let files = Array.from(fileList || []).filter(f=>f && f.type.startsWith('image/'));
+  if(!files.length) return;
+  show('review');
+  $('#thumbs').innerHTML = '<div style="text-align:center;color:#6b7280;padding:14px">…</div>';
+  $('#rev-err').classList.add('hidden');
 
-  let portrait = res.portrait;
-  if(portrait===null){
-    // Fallback ohne bekannte Maße → aus geladenem Bild bestimmen
-    await new Promise(r=>{ const i=$('#prev-img'); i.onload=()=>{ portrait = i.naturalHeight>i.naturalWidth; r(); }; if(i.complete) { portrait=i.naturalHeight>i.naturalWidth; r(); }});
+  const capped = files.length > MAX_FILES;
+  if(capped) files = files.slice(0, MAX_FILES);
+  const nc = $('#notice-cap');
+  if(capped){ nc.textContent = `Maximal ${MAX_FILES} Fotos auf einmal — die ersten ${MAX_FILES} werden hochgeladen.`; nc.classList.add('show'); }
+  else nc.classList.remove('show');
+
+  items = [];
+  for(const f of files){ items.push(await prepare(f)); }
+  renderThumbs();
+}
+
+function renderThumbs(){
+  const t = $('#thumbs');
+  t.innerHTML = '';
+  t.classList.toggle('multi', items.length > 1);
+  let anyPortrait = false;
+  for(const it of items){
+    it.url = URL.createObjectURL(it.blob);
+    const d = document.createElement('div'); d.className='thumb';
+    const im = document.createElement('img'); im.src = it.url;
+    d.appendChild(im);
+    if(it.portrait){ const p=document.createElement('span'); p.className='p'; p.textContent='hochkant'; d.appendChild(p); anyPortrait=true; }
+    t.appendChild(d);
   }
-  if(portrait){
-    $('#orient-badge').textContent='Hochkant';
-    $('#warn-portrait').classList.add('show');
-  }else{
-    $('#orient-badge').textContent='Querformat ✓';
-  }
+  $('#warn-portrait').classList.toggle('show', items.length===1 && anyPortrait);
+  $('#btn-upload').textContent = items.length>1 ? `${items.length} hochladen ✓` : 'Hochladen ✓';
 }
 
 async function doUpload(){
-  if(!currentBlob){ resetToStart(); return; }
-  $('#btn-upload').disabled=true;
-  $('#prev-err').classList.add('hidden');
-  const bar = $('#progress'); bar.classList.add('show');
-  const fill = $('#progress i'); fill.style.width='8%';
+  if(!items.length){ resetToStart(); return; }
+  $('#btn-upload').disabled=true; $('#btn-retry').disabled=true;
+  $('#rev-err').classList.add('hidden');
+  const comment = $('#comment').value.trim();
+  const bar=$('#progress'), fill=$('#progress i'), pc=$('#pcount');
+  bar.classList.add('show');
+  if(items.length>1){ pc.classList.add('show'); }
 
-  const fd = new FormData();
-  const name = 'selfie-'+Date.now()+'.jpg';
-  fd.append('file', currentBlob, name);
-
-  try{
-    await new Promise((resolve,reject)=>{
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST','/api/upload');
-      xhr.upload.onprogress = e=>{ if(e.lengthComputable) fill.style.width = (10 + 80*e.loaded/e.total).toFixed(0)+'%'; };
-      xhr.onload = ()=>{ if(xhr.status>=200 && xhr.status<300){ fill.style.width='100%'; resolve(); }
-        else { let m='Upload fehlgeschlagen'; try{ m=JSON.parse(xhr.responseText).detail||m; }catch(e){} reject(new Error(m)); } };
-      xhr.onerror = ()=> reject(new Error('Netzwerkfehler — nochmal versuchen'));
-      xhr.send(fd);
-    });
-    setTimeout(()=>show('done'), 250);
-  }catch(err){
-    bar.classList.remove('show');
-    const e=$('#prev-err'); e.textContent='⚠️ '+err.message; e.classList.remove('hidden');
-    $('#btn-upload').disabled=false;
+  let done=0, failed=0;
+  for(let i=0;i<items.length;i++){
+    pc.textContent = `Lade hoch … ${i+1}/${items.length}`;
+    try{
+      await uploadOne(items[i].blob, comment, (frac)=>{
+        fill.style.width = Math.round(100*(done+frac)/items.length)+'%';
+      });
+      done++;
+    }catch(e){ failed++; }
+    fill.style.width = Math.round(100*(done+failed)/items.length)+'%';
   }
+
+  if(done===0){
+    bar.classList.remove('show'); pc.classList.remove('show');
+    const e=$('#rev-err'); e.textContent='⚠️ Upload fehlgeschlagen — nochmal versuchen.'; e.classList.remove('hidden');
+    $('#btn-upload').disabled=false; $('#btn-retry').disabled=false;
+    return;
+  }
+  const msg = done===1 ? 'Dein Foto ist gleich auf dem Fernseher zu sehen.'
+    : `${done} Fotos sind gleich auf dem Fernseher zu sehen.`;
+  $('#done-msg').textContent = failed ? msg+` (${failed} ging${failed>1?'en':''} leider nicht.)` : msg;
+  $('#btn-retry').disabled=false;
+  setTimeout(()=>show('done'), 250);
+}
+
+function uploadOne(blob, comment, onprog){
+  return new Promise((resolve,reject)=>{
+    const fd = new FormData();
+    fd.append('file', blob, 'selfie-'+Date.now()+'.jpg');
+    if(comment) fd.append('comment', comment);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST','/api/upload');
+    xhr.upload.onprogress = e=>{ if(e.lengthComputable && onprog) onprog(e.loaded/e.total); };
+    xhr.onload = ()=>{ (xhr.status>=200 && xhr.status<300) ? resolve() : reject(new Error('http '+xhr.status)); };
+    xhr.onerror = ()=> reject(new Error('net'));
+    xhr.send(fd);
+  });
 }
 </script>
 </body>

@@ -5,31 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Foto-Wall · TV</title>
 <style>
-  :root{ --accent:#e0a04a; }
+  :root{ --accent:#e0a04a; --green:#16443a; --green2:#0c2a22; }
   *{box-sizing:border-box; margin:0; padding:0}
   html,body{height:100%; background:#0a0d14; overflow:hidden; cursor:none}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:#fff}
 
   #stage{position:fixed; inset:0; background:#0a0d14}
-
-  /* Zwei Foto-Ebenen. Lückenloser Übergang: die neue Ebene liegt per z-index
-     oben drauf und blendet über der alten ein (die alte bleibt solange voll
-     sichtbar) -> nie ein dunkler Zwischenframe. */
   .layer{position:absolute; inset:0; opacity:0; background:#0a0d14;
-    transition:opacity .9s ease;
-    will-change:opacity; transform:translateZ(0); backface-visibility:hidden}
+    transition:opacity .9s ease; will-change:opacity; transform:translateZ(0); backface-visibility:hidden}
   .layer .bg{position:absolute; inset:0; background-size:cover; background-position:center;
     filter:blur(22px) brightness(.5); transform:scale(1.1) translateZ(0)}
   .layer .fg{position:absolute; inset:0; background-size:contain; background-position:center;
     background-repeat:no-repeat; transform:translateZ(0)}
-
-  /* Titel unten links */
-  #title{position:fixed; left:42px; bottom:32px; z-index:10;
-    font-size:clamp(22px,3.2vw,46px); font-weight:800; text-shadow:0 2px 18px rgba(0,0,0,.75)}
-  /* Foto-Zahl oben rechts */
-  #count{position:fixed; top:34px; right:40px; z-index:10;
-    font-size:clamp(13px,1.4vw,20px); font-weight:700; opacity:.9;
-    background:rgba(255,255,255,.14); padding:8px 16px; border-radius:999px; backdrop-filter:blur(8px)}
 
   /* QR-Ecke oben links */
   #qr{position:fixed; left:34px; top:30px; z-index:10; display:flex; align-items:center; gap:14px;
@@ -39,26 +26,56 @@
   #qr .txt{font-weight:800; line-height:1.2}
   #qr .txt small{display:block; font-weight:600; opacity:.7; font-size:.72em; margin-top:3px}
 
-  /* Scrims für Lesbarkeit über hellen Fotos */
-  #scrim-top{position:fixed; top:0; left:0; right:0; height:160px; z-index:9;
-    background:linear-gradient(180deg,rgba(0,0,0,.45),transparent); pointer-events:none}
-  #scrim-bottom{position:fixed; bottom:0; left:0; right:0; height:180px; z-index:9;
-    background:linear-gradient(0deg,rgba(0,0,0,.55),transparent); pointer-events:none}
+  /* Titel + Foto-Zahl oben rechts */
+  #brand-tr{position:fixed; top:30px; right:40px; z-index:10; text-align:right}
+  #brand-tr .t{font-size:clamp(20px,2.8vw,42px); font-weight:800; text-shadow:0 2px 16px rgba(0,0,0,.7)}
+  #brand-tr .c{margin-top:10px; font-size:clamp(12px,1.3vw,18px); font-weight:700; opacity:.92;
+    background:rgba(255,255,255,.14); padding:7px 15px; border-radius:999px; backdrop-filter:blur(8px); display:inline-block}
 
-  /* "Neu"-Badge bei frischen Uploads */
+  /* Kommentar unten links */
+  #comment{position:fixed; left:42px; bottom:34px; z-index:10; max-width:62vw;
+    font-size:clamp(20px,2.7vw,42px); font-weight:700; line-height:1.25;
+    text-shadow:0 2px 16px rgba(0,0,0,.9); display:none}
+  #comment.show{display:block}
+
+  #scrim-top{position:fixed; top:0; left:0; right:0; height:200px; z-index:9;
+    background:linear-gradient(180deg,rgba(0,0,0,.5),transparent); pointer-events:none}
+  #scrim-bottom{position:fixed; bottom:0; left:0; right:0; height:240px; z-index:9;
+    background:linear-gradient(0deg,rgba(0,0,0,.62),transparent); pointer-events:none}
+
   #newbadge{position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(.6); z-index:20;
     background:linear-gradient(135deg,#e0a04a,#c8772f); color:#fff; font-size:clamp(22px,3vw,42px); font-weight:900;
     padding:16px 34px; border-radius:999px; box-shadow:0 16px 60px rgba(0,0,0,.5); opacity:0; pointer-events:none}
   #newbadge.flash{animation:pop 2.4s ease forwards}
   @keyframes pop{0%{opacity:0; transform:translate(-50%,-50%) scale(.6)}
-    12%{opacity:1; transform:translate(-50%,-50%) scale(1.05)}
-    20%{transform:translate(-50%,-50%) scale(1)}
+    12%{opacity:1; transform:translate(-50%,-50%) scale(1.05)}20%{transform:translate(-50%,-50%) scale(1)}
     82%{opacity:1}100%{opacity:0; transform:translate(-50%,-58%) scale(1)}}
 
   @keyframes kb{from{transform:scale(1.02) translateZ(0)}to{transform:scale(1.07) translateZ(0)}}
 
-  /* Empty-State */
-  #empty{position:fixed; inset:0; z-index:15; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px; text-align:center; padding:40px; background:#0a0d14}
+  /* COURT7-Werbung (alle paar Bilder) */
+  #ad{position:fixed; inset:0; z-index:30; display:flex; opacity:0; transition:opacity .6s ease;
+    background:linear-gradient(135deg,var(--green),var(--green2) 70%)}
+  #ad.show{opacity:1}
+  #ad .ad-left{flex:0 0 42%; display:flex; flex-direction:column; justify-content:space-between;
+    padding:clamp(28px,4vw,64px)}
+  #ad .ad-brand{font-size:clamp(28px,3.6vw,56px); font-weight:900; letter-spacing:.04em}
+  #ad .ad-brand small{display:block; font-size:.34em; font-weight:700; letter-spacing:.22em; opacity:.75; margin-top:6px}
+  #ad .ad-kicker{color:var(--accent); font-weight:800; letter-spacing:.14em; text-transform:uppercase; font-size:clamp(12px,1.3vw,18px)}
+  #ad .ad-line{font-size:clamp(26px,3.4vw,52px); font-weight:800; line-height:1.1; margin:10px 0 22px}
+  #ad .ad-prod{font-size:clamp(16px,1.7vw,24px); font-weight:700; opacity:.9}
+  #ad .ad-price{font-size:clamp(26px,3vw,46px); font-weight:900; color:var(--accent); margin-top:4px}
+  #ad .ad-cta{display:inline-block; margin-top:20px; background:var(--accent); color:#0a0d14; font-weight:900;
+    font-size:clamp(16px,1.8vw,26px); padding:12px 24px; border-radius:999px; align-self:flex-start}
+  #ad .ad-qr{display:flex; align-items:center; gap:16px}
+  #ad .ad-qr img{width:clamp(96px,9vw,150px); height:clamp(96px,9vw,150px); background:#fff; padding:8px; border-radius:14px}
+  #ad .ad-qr div{font-size:clamp(14px,1.4vw,20px); font-weight:700; line-height:1.3}
+  #ad .ad-right{flex:1; background:#f6efe2; display:flex; align-items:center; justify-content:center; padding:clamp(20px,3vw,56px)}
+  #ad .ad-right img{max-width:100%; max-height:100%; object-fit:contain; border-radius:10px}
+  #ad .ad-tag{position:absolute; top:22px; right:28px; font-size:clamp(11px,1.1vw,15px); font-weight:700;
+    opacity:.7; background:rgba(0,0,0,.25); padding:6px 14px; border-radius:999px}
+
+  #empty{position:fixed; inset:0; z-index:25; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px; text-align:center; padding:40px; background:#0a0d14}
   #empty.hidden{display:none}
   #empty .e-title{font-size:clamp(26px,4vw,56px); font-weight:800}
   #empty .e-sub{font-size:clamp(16px,2vw,26px); opacity:.8; max-width:18em}
@@ -82,10 +99,29 @@
     <img src="/api/qr.png" alt="QR" />
     <div class="txt">Mitmachen!<small id="qr-url"></small></div>
   </div>
-  <div id="count"></div>
-  <div id="title">…</div>
+  <div id="brand-tr">
+    <div class="t" id="title">…</div>
+    <div class="c" id="count"></div>
+  </div>
+  <div id="comment"></div>
 
   <div id="newbadge">Neu! 🎉</div>
+
+  <div id="ad" class="hidden">
+    <div class="ad-left">
+      <div class="ad-brand">COURT7<small>court7.eu</small></div>
+      <div>
+        <div class="ad-kicker">In eigener Sache 😄</div>
+        <div class="ad-line" id="ad-line"></div>
+        <div class="ad-prod" id="ad-title"></div>
+        <div class="ad-price" id="ad-price"></div>
+        <div class="ad-cta">Jetzt shoppen 🛒</div>
+      </div>
+      <div class="ad-qr"><img id="ad-qr" alt="QR" /><div>Scannen →<br><b>court7.eu</b></div></div>
+    </div>
+    <div class="ad-right"><img id="ad-img" alt="" /></div>
+    <div class="ad-tag">Werbung · gleich geht's weiter</div>
+  </div>
 
   <div id="empty">
     <div class="e-title" id="empty-title">…</div>
@@ -98,22 +134,34 @@
 const $ = s => document.querySelector(s);
 const params = new URLSearchParams(location.search);
 
-let SLIDE = parseFloat(params.get('seconds')) || 4;     // ?seconds=5 überschreibt live
-let SPOTLIGHT = 6;                                       // frische Fotos länger zeigen
+let SLIDE = parseFloat(params.get('seconds')) || 4;
+let SPOTLIGHT = 6;
 const POLL_MS = 2500;
+const AD_EVERY = 10;     // alle 10 Fotos eine Werbung
+const AD_SECONDS = 9;
 
-let order = [];            // alle bekannten IDs (chronologisch)
+// COURT7-Produkte für die Werbung (Bilder liegen lokal in /static/ad)
+const ADS = [
+  { img:'/static/ad/prod-green-tee.jpg',  title:'AD-IN Tee Green · COURT7-Backprint', price:'45 €', line:'Backprint. Bold. Grün.',        url:'https://court7.eu/products/ad-in-200-basic-tee-green' },
+  { img:'/static/ad/prod-bottle.jpg',     title:'COURT7 Sportflasche · 1 L',          price:'20 €', line:'1 Liter Style für die Bank.',   url:'https://court7.eu/products/court-7-sportflasche' },
+  { img:'/static/ad/prod-cap.jpg',        title:'Court Cap',                          price:'25 €', line:'Cap auf, Sonne raus.',         url:'https://court7.eu/products/court-cap' },
+  { img:'/static/ad/prod-red-raglan.jpg', title:'Performance Tee Raglan Red',         price:'45 €', line:'Spiel, Satz, Style.',          url:'https://court7.eu/products/performance-raglan-contrast-tee-red' },
+];
+
+let order = [];               // bekannte IDs (chronologisch)
+let meta = new Map();          // id -> comment
 let known = new Set();
 let lastId = '';
-let queue = [];            // frische IDs -> als Spotlight
+let queue = [];                // frische IDs -> Spotlight
 let idx = -1;
 let initialized = false;
+let shownSinceAd = 0, adIdx = 0;
 
 const layers = [
   { root:$('#layerA'), bg:$('#layerA .bg'), fg:$('#layerA .fg') },
   { root:$('#layerB'), bg:$('#layerB .bg'), fg:$('#layerB .fg') },
 ];
-let cur = 0;     // aktuell sichtbare Ebene
+let cur = 0;
 
 fetch('/api/config').then(r=>r.json()).then(c=>{
   if(c.slideSeconds && !params.get('seconds')) SLIDE = c.slideSeconds;
@@ -128,50 +176,66 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
 
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
-// Bild voll dekodieren, BEVOR es eingeblendet wird (verhindert schwarzes
-// Aufblinken auf schwachen Geräten wie dem Fire TV Stick).
-function decode(img){
+// Bild komplett vordecodieren, BEVOR es als background-image gesetzt wird:
+// background-image malt atomar (kein progressives Halb-Laden wie <img>) und
+// sofort (kein schwarzer Leerframe).
+function decode(url){
   return new Promise(res=>{
-    let done=false; const fin=()=>{ if(!done){done=true;res();} };
-    if(img.decode){ img.decode().then(fin).catch(fin); }
-    else { img.onload=fin; img.onerror=fin; }
-    setTimeout(fin, 2000); // Sicherheitsnetz
+    const im = new Image(); let done=false; const fin=()=>{ if(!done){done=true;res();} };
+    if(im.decode){ im.src=url; im.decode().then(fin).catch(fin); }
+    else { im.onload=fin; im.onerror=fin; im.src=url; }
+    setTimeout(fin, 2500);
   });
 }
 
+// Anzeigedauer: länger, wenn ein (langer) Kommentar gelesen werden soll.
+function dwellFor(comment, spotlight){
+  let s = spotlight ? SPOTLIGHT : SLIDE;
+  if(comment){ s = Math.max(s, SLIDE) + Math.min(comment.length/12, 10); }
+  return Math.min(s, 16);
+}
+
 async function show(id, spotlight){
-  const inc = layers[(cur+1)%2];
-  const out = layers[cur];
+  const inc = layers[(cur+1)%2], out = layers[cur];
   const url = `/photo/${id}`;
-  // Bild komplett vordecodieren (in den Cache), BEVOR es als background-image
-  // gesetzt wird. background-image malt atomar (kein progressives Halb-Laden
-  // von oben nach unten wie bei <img>) und — weil schon dekodiert — sofort,
-  // ohne schwarzen Leerframe.
-  const pre = new Image();
-  pre.src = url;
-  await decode(pre);
+  await decode(url);
   inc.fg.style.backgroundImage = `url("${url}")`;
   inc.bg.style.backgroundImage = `url("${url}")`;
-  // Ken-Burns neu starten, solange die Ebene noch unsichtbar ist (kein Flash)
-  inc.fg.style.animation = 'none';
-  void inc.fg.offsetWidth;
+  inc.fg.style.animation = 'none'; void inc.fg.offsetWidth;
   inc.fg.style.animation = `kb ${(spotlight?SPOTLIGHT:SLIDE)+1.5}s ease-out forwards`;
-  inc.root.style.zIndex = 2;            // neue Ebene oben, alte darunter (bleibt < Scrims/UI)
-  out.root.style.zIndex = 1;
-  inc.root.style.opacity = '1';         // blendet ein (transition)
+  inc.root.style.zIndex = 2; out.root.style.zIndex = 1;
+  inc.root.style.opacity = '1';
   cur = (cur+1)%2;
-  // alte Ebene erst nach dem Fade ausblenden -> immer volle Deckung
   setTimeout(()=>{ out.root.style.opacity = '0'; }, 950);
-  if(spotlight){
-    const b=$('#newbadge'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash');
-  }
+
+  const comment = meta.get(id) || '';
+  const cEl = $('#comment');
+  cEl.textContent = comment;
+  cEl.classList.toggle('show', !!comment);
+
+  if(spotlight){ const b=$('#newbadge'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
+}
+
+async function showAd(ad){
+  $('#comment').classList.remove('show');
+  $('#ad-line').textContent = ad.line;
+  $('#ad-title').textContent = ad.title;
+  $('#ad-price').textContent = ad.price;
+  $('#ad-img').src = ad.img;
+  $('#ad-qr').src = '/api/qr.png?data=' + encodeURIComponent(ad.url);
+  await decode(ad.img);
+  $('#ad').classList.remove('hidden'); void $('#ad').offsetWidth;
+  $('#ad').classList.add('show');
+  await sleep(AD_SECONDS*1000);
+  $('#ad').classList.remove('show');
+  await sleep(650);
+  $('#ad').classList.add('hidden');
 }
 
 function setEmpty(isEmpty){
   $('#empty').classList.toggle('hidden', !isEmpty);
   $('#qr').style.display = isEmpty ? 'none' : 'flex';
-  $('#title').style.display = isEmpty ? 'none' : 'block';
-  $('#count').style.display = isEmpty ? 'none' : 'block';
+  $('#brand-tr').style.display = isEmpty ? 'none' : 'block';
 }
 
 async function loop(){
@@ -182,7 +246,12 @@ async function loop(){
     else { setEmpty(true); await sleep(800); continue; }
     setEmpty(false);
     await show(id, spotlight);
-    await sleep((spotlight ? SPOTLIGHT : SLIDE) * 1000);
+    await sleep(dwellFor(meta.get(id)||'', spotlight) * 1000);
+    shownSinceAd++;
+    if(shownSinceAd >= AD_EVERY){
+      shownSinceAd = 0;
+      await showAd(ADS[adIdx % ADS.length]); adIdx++;
+    }
   }
 }
 
@@ -194,9 +263,9 @@ async function poll(){
     $('#count').textContent = n + ' Foto' + (n===1?'':'s');
     for(const p of (data.photos||[])){
       if(known.has(p.id)) continue;
-      known.add(p.id); order.push(p.id);
+      known.add(p.id); order.push(p.id); meta.set(p.id, p.comment||'');
       if(p.id > lastId) lastId = p.id;
-      if(initialized) queue.push(p.id);   // Erstbestand nicht als Spotlight
+      if(initialized) queue.push(p.id);
     }
     initialized = true;
   }catch(e){ /* Netz weg -> weiterlaufen */ }
@@ -208,9 +277,7 @@ async function poll(){
   setInterval(poll, POLL_MS);
 })();
 
-// Vollbild beim ersten Tap/Klick (Fire-TV-Remote OK)
 document.body.addEventListener('click', ()=>{ const el=document.documentElement; if(el.requestFullscreen) el.requestFullscreen().catch(()=>{}); });
-// Bildschirm wachhalten
 if('wakeLock' in navigator){ const req=()=>navigator.wakeLock.request('screen').catch(()=>{}); req(); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') req(); }); }
 </script>
 </body>
