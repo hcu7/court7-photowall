@@ -124,6 +124,14 @@ def _exec(sql: str, params=(), fetch=None):
 
 def init_db():
     _exec(_DDL)
+    # Backup-Flag (vom getrennten Backup-Worker genutzt) — idempotent nachziehen.
+    if PG:
+        _exec("ALTER TABLE photos ADD COLUMN IF NOT EXISTS backed_up BOOLEAN NOT NULL DEFAULT FALSE")
+    else:
+        try:
+            _exec("ALTER TABLE photos ADD COLUMN backed_up INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
 
 
 def db_insert(pid: str, data: bytes, comment: str, sort: float):
