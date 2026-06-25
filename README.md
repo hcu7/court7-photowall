@@ -61,5 +61,22 @@ DATA_DIR=./data TITLE="Test 🎉" ADMIN_TOKEN=test1234 \
 ## Deployment
 
 Coolify-App `photowall` auf Server `court7-cx53`, Build Pack Dockerfile,
-Port 8000, Domain via `*.court7.world`. Quelle: dieses öffentliche Repo.
-Personalisierung ausschließlich über ENV.
+Port 8000, Domain `60.court7.world` (Wildcard `*.court7.world` →
+`178.105.31.62`, Cloudflare-proxied). Personalisierung ausschließlich über ENV.
+
+**Repo ist privat.** Der Coolify-MCP hat keinen „private-repo-mit-Deploy-Key"-
+Endpoint, daher zwei Wege:
+
+1. **Git-basiert (genutzt):** Repo kurz auf `public` schalten, Coolify-Deploy
+   triggern (zieht `main`), nach erfolgreichem Smoke-Test wieder auf `private`.
+   Der laufende Container hängt nicht am Repo — bleibt privat unbeschadet.
+   Für ein erneutes Git-Deploy diesen Schritt wiederholen ODER in der
+   Coolify-UI einen Deploy-Key hinterlegen (Muster wie die anderen Apps).
+2. **Self-contained (Fallback, ohne GitHub-Zugriff):**
+   `scripts/build-inline-dockerfile.sh > /tmp/inline.Dockerfile` erzeugt ein
+   Dockerfile mit eingebackenem Code (gzip+base64 + SHA-256-Check). Damit kann
+   die App rein lokal/offline gebaut werden.
+
+**Wichtig (Healthcheck):** Das `python:3.12-slim`-Image braucht `curl` im Image,
+weil Coolifys Healthcheck `curl`/`wget` aufruft — sonst 503 + Rollback trotz
+laufender App. Ist im Dockerfile installiert.
