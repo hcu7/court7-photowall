@@ -20,8 +20,8 @@
     will-change:opacity; transform:translateZ(0); backface-visibility:hidden}
   .layer .bg{position:absolute; inset:0; background-size:cover; background-position:center;
     filter:blur(22px) brightness(.5); transform:scale(1.1) translateZ(0)}
-  .layer .fg{position:absolute; inset:0; width:100%; height:100%;
-    object-fit:contain; display:block; transform:translateZ(0)}
+  .layer .fg{position:absolute; inset:0; background-size:contain; background-position:center;
+    background-repeat:no-repeat; transform:translateZ(0)}
 
   /* Titel unten links */
   #title{position:fixed; left:42px; bottom:32px; z-index:10;
@@ -71,8 +71,8 @@
 </head>
 <body>
   <div id="stage">
-    <div class="layer" id="layerA"><div class="bg"></div><img class="fg" alt="" /></div>
-    <div class="layer" id="layerB"><div class="bg"></div><img class="fg" alt="" /></div>
+    <div class="layer" id="layerA"><div class="bg"></div><div class="fg"></div></div>
+    <div class="layer" id="layerB"><div class="bg"></div><div class="fg"></div></div>
   </div>
 
   <div id="scrim-top"></div>
@@ -143,9 +143,15 @@ async function show(id, spotlight){
   const inc = layers[(cur+1)%2];
   const out = layers[cur];
   const url = `/photo/${id}`;
+  // Bild komplett vordecodieren (in den Cache), BEVOR es als background-image
+  // gesetzt wird. background-image malt atomar (kein progressives Halb-Laden
+  // von oben nach unten wie bei <img>) und — weil schon dekodiert — sofort,
+  // ohne schwarzen Leerframe.
+  const pre = new Image();
+  pre.src = url;
+  await decode(pre);
+  inc.fg.style.backgroundImage = `url("${url}")`;
   inc.bg.style.backgroundImage = `url("${url}")`;
-  inc.fg.src = url;
-  await decode(inc.fg);                 // erst wenn fertig dekodiert
   // Ken-Burns neu starten, solange die Ebene noch unsichtbar ist (kein Flash)
   inc.fg.style.animation = 'none';
   void inc.fg.offsetWidth;
