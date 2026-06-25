@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#1b2a4a" />
+<title>Moderation</title>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; background:#10141d; color:#f3f4f6;
+    min-height:100dvh; padding:max(16px,env(safe-area-inset-top)) 14px max(20px,env(safe-area-inset-bottom))}
+  h1{font-size:20px; margin-bottom:4px}
+  .muted{color:#9ca3af; font-size:14px}
+  .gate{max-width:380px; margin:14vh auto 0; text-align:center}
+  .gate input{width:100%; padding:15px; font-size:18px; border-radius:14px; border:1px solid #374151;
+    background:#1b2230; color:#fff; margin:18px 0 12px; text-align:center; letter-spacing:.05em}
+  .btn{width:100%; border:0; border-radius:14px; padding:15px; font-size:16px; font-weight:800; cursor:pointer;
+    background:linear-gradient(135deg,#c8772f,#e0a04a); color:#fff}
+  .btn:active{transform:scale(.99)}
+  .err{color:#f87171; font-weight:700; margin-top:10px; font-size:14px; min-height:18px}
+  .bar{display:flex; align-items:center; gap:10px; margin:8px 0 16px}
+  .bar .btn{width:auto; padding:9px 14px; font-size:13px; background:#374151}
+  .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+  .tile{position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background:#000}
+  .tile img{width:100%; height:100%; object-fit:cover; display:block}
+  .tile button{position:absolute; right:8px; top:8px; width:38px; height:38px; border-radius:50%; border:0;
+    background:rgba(220,38,38,.92); color:#fff; font-size:20px; font-weight:800; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.4)}
+  .tile.gone{opacity:.25; pointer-events:none}
+  .empty{text-align:center; color:#9ca3af; padding:40px 0}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+  <section id="gate" class="gate">
+    <h1>🔒 Moderation</h1>
+    <div class="muted">PIN eingeben, um Fotos entfernen zu können.<br>(steht in Coolify als <code>ADMIN_TOKEN</code>)</div>
+    <input id="pin" type="password" inputmode="text" placeholder="PIN" autocomplete="off" />
+    <button class="btn" id="btn-unlock">Entsperren</button>
+    <div class="err" id="gate-err"></div>
+  </section>
+
+  <section id="app" class="hidden">
+    <h1>Foto-Moderation</h1>
+    <div class="bar">
+      <span class="muted" id="status">…</span>
+      <button class="btn" id="btn-refresh" style="margin-left:auto">↻ Aktualisieren</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty hidden" id="empty">Noch keine Fotos.</div>
+  </section>
+
+<script>
+const $ = s => document.querySelector(s);
+let TOKEN = localStorage.getItem('pw_admin') || '';
+
+async function check(t){
+  const r = await fetch('/api/admin/check?token='+encodeURIComponent(t));
+  return r.ok;
+}
+async function unlock(t){
+  if(await check(t)){ TOKEN=t; localStorage.setItem('pw_admin',t); $('#gate').classList.add('hidden'); $('#app').classList.remove('hidden'); load(); }
+  else { $('#gate-err').textContent='Falsche PIN'; }
+}
+$('#btn-unlock').addEventListener('click', ()=> unlock($('#pin').value.trim()));
+$('#pin').addEventListener('keydown', e=>{ if(e.key==='Enter') unlock($('#pin').value.trim()); });
+$('#btn-refresh').addEventListener('click', load);
+
+async function load(){
+  try{
+    const r = await fetch('/api/admin/photos?token='+encodeURIComponent(TOKEN));
+    if(r.status===401){ relock(); return; }
+    const data = await r.json();
+    const photos = data.photos||[];
+    $('#status').textContent = photos.length+' Foto'+(photos.length===1?'':'s');
+    $('#empty').classList.toggle('hidden', photos.length>0);
+    const g = $('#grid'); g.innerHTML='';
+    for(const p of photos){
+      const t = document.createElement('div'); t.className='tile';
+      const im = document.createElement('img'); im.src=p.url; im.loading='lazy';
+      const b = document.createElement('button'); b.textContent='✕'; b.title='Entfernen';
+      b.addEventListener('click', ()=> hide(p.id, t));
+      t.appendChild(im); t.appendChild(b); g.appendChild(t);
+    }
+  }catch(e){ $('#status').textContent='Fehler beim Laden'; }
+}
+async function hide(id, tile){
+  if(!confirm('Dieses Foto vom Fernseher entfernen?')) return;
+  tile.classList.add('gone');
+  const r = await fetch('/api/photos/'+encodeURIComponent(id)+'/hide?token='+encodeURIComponent(TOKEN),{method:'POST'});
+  if(!r.ok){ tile.classList.remove('gone'); alert('Konnte nicht entfernt werden.'); }
+}
+function relock(){ localStorage.removeItem('pw_admin'); TOKEN=''; $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); $('#gate-err').textContent='Bitte erneut entsperren'; }
+
+if(TOKEN){ check(TOKEN).then(ok=>{ if(ok){ $('#gate').classList.add('hidden'); $('#app').classList.remove('hidden'); load(); } }); }
+</script>
+</body>
+</html>
