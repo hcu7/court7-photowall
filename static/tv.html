@@ -148,10 +148,9 @@ const ADS = [
   { img:'/static/ad/prod-red-raglan.jpg', title:'Performance Tee Raglan Red',         price:'45 €', line:'Spiel, Satz, Style.',          url:'https://court7.eu/products/performance-raglan-contrast-tee-red' },
 ];
 
-let order = [];               // bekannte IDs (chronologisch)
+let order = [];               // IDs in Anzeige-Reihenfolge (vom Server)
 let meta = new Map();          // id -> comment
 let known = new Set();
-let lastId = '';
 let queue = [];                // frische IDs -> Spotlight
 let idx = -1;
 let initialized = false;
@@ -257,16 +256,24 @@ async function loop(){
 
 async function poll(){
   try{
-    const r = await fetch('/api/photos?since='+encodeURIComponent(lastId));
+    const r = await fetch('/api/photos');
     const data = await r.json();
+    const photos = data.photos || [];
     const n = data.count||0;
     $('#count').textContent = n + ' Foto' + (n===1?'':'s');
-    for(const p of (data.photos||[])){
-      if(known.has(p.id)) continue;
-      known.add(p.id); order.push(p.id); meta.set(p.id, p.comment||'');
-      if(p.id > lastId) lastId = p.id;
-      if(initialized) queue.push(p.id);
+    // Reihenfolge + Kommentare komplett vom Server übernehmen -> spiegelt
+    // Admin-Änderungen (Sortierung, Kommentar bearbeiten, Löschen) live.
+    order = photos.map(p=>p.id);
+    const present = new Set(order);
+    for(const p of photos) meta.set(p.id, p.comment||'');
+    for(const id of [...known]) if(!present.has(id)) known.delete(id);  // gelöschte raus
+    for(const p of photos){                                            // neue -> Spotlight
+      if(!known.has(p.id)){
+        known.add(p.id);
+        if(initialized) queue.push(p.id);
+      }
     }
+    if(idx >= order.length) idx = -1;
     initialized = true;
   }catch(e){ /* Netz weg -> weiterlaufen */ }
 }

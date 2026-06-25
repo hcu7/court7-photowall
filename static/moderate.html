@@ -3,60 +3,75 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#1b2a4a" />
-<title>Moderation</title>
+<meta name="theme-color" content="#10141d" />
+<title>Foto-Verwaltung</title>
 <style>
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; background:#10141d; color:#f3f4f6;
-    min-height:100dvh; padding:max(16px,env(safe-area-inset-top)) 14px max(20px,env(safe-area-inset-bottom))}
-  h1{font-size:20px; margin-bottom:4px}
-  .muted{color:#9ca3af; font-size:14px}
-  .gate{max-width:380px; margin:14vh auto 0; text-align:center}
-  .gate input{width:100%; padding:15px; font-size:18px; border-radius:14px; border:1px solid #374151;
-    background:#1b2230; color:#fff; margin:18px 0 12px; text-align:center; letter-spacing:.05em}
-  .btn{width:100%; border:0; border-radius:14px; padding:15px; font-size:16px; font-weight:800; cursor:pointer;
-    background:linear-gradient(135deg,#c8772f,#e0a04a); color:#fff}
-  .btn:active{transform:scale(.99)}
+    min-height:100dvh; padding:max(16px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom))}
+  .wrap{max-width:560px; margin:0 auto}
+  h1{font-size:21px; margin-bottom:2px}
+  .muted{color:#9ca3af; font-size:13.5px}
+  code{background:#1b2230; padding:1px 6px; border-radius:6px}
+
+  .gate{max-width:380px; margin:13vh auto 0; text-align:center}
+  .gate input{width:100%; padding:16px; font-size:22px; letter-spacing:.3em; text-align:center;
+    border-radius:14px; border:1px solid #374151; background:#1b2230; color:#fff; margin:18px 0 12px}
+  .btn{border:0; border-radius:13px; padding:13px 16px; font-size:15px; font-weight:800; cursor:pointer; color:#fff}
+  .btn.primary{background:linear-gradient(135deg,#c8772f,#e0a04a); width:100%; font-size:17px; padding:15px}
+  .btn:active{transform:scale(.98)}
   .err{color:#f87171; font-weight:700; margin-top:10px; font-size:14px; min-height:18px}
-  .bar{display:flex; align-items:center; gap:10px; margin:8px 0 16px}
-  .bar .btn{width:auto; padding:9px 14px; font-size:13px; background:#374151}
-  .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
-  .tile{position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden; background:#000}
-  .tile img{width:100%; height:100%; object-fit:cover; display:block}
-  .tile button{position:absolute; right:8px; top:8px; width:38px; height:38px; border-radius:50%; border:0;
-    background:rgba(220,38,38,.92); color:#fff; font-size:20px; font-weight:800; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.4)}
-  .tile.gone{opacity:.25; pointer-events:none}
+
+  .bar{display:flex; align-items:center; gap:10px; margin:6px 0 16px}
+  .bar .btn{background:#374151}
+
+  .card{background:#161c27; border:1px solid #232c3a; border-radius:16px; padding:12px; margin-bottom:14px}
+  .card .pic{position:relative; border-radius:12px; overflow:hidden; background:#000; aspect-ratio:16/10}
+  .card .pic img{width:100%; height:100%; object-fit:contain; display:block}
+  .card .pic .pos{position:absolute; left:8px; top:8px; background:rgba(0,0,0,.6); color:#fff; font-size:12px;
+    font-weight:800; padding:4px 10px; border-radius:999px; backdrop-filter:blur(6px)}
+  .card textarea{width:100%; margin-top:10px; border:1px solid #2b3546; border-radius:11px; padding:10px 12px;
+    font-size:15px; font-family:inherit; color:#fff; background:#0f1520; resize:none; min-height:46px}
+  .card textarea:focus{outline:none; border-color:#e0a04a}
+  .row{display:flex; gap:8px; margin-top:10px}
+  .row .btn{flex:0 0 auto; background:#283142; font-size:18px; padding:11px 14px; line-height:1}
+  .row .btn.save{flex:1; background:#1f6b4d; font-size:14px}
+  .row .btn.del{background:#7f1d1d}
+  .row .btn:disabled{opacity:.35; pointer-events:none}
+  .saved{color:#34d399; font-size:12px; font-weight:700; margin-top:6px; min-height:14px}
+
   .empty{text-align:center; color:#9ca3af; padding:40px 0}
   .hidden{display:none !important}
 </style>
 </head>
 <body>
+<div class="wrap">
   <section id="gate" class="gate">
-    <h1>🔒 Moderation</h1>
-    <div class="muted">PIN eingeben, um Fotos entfernen zu können.<br>(steht in Coolify als <code>ADMIN_TOKEN</code>)</div>
-    <input id="pin" type="password" inputmode="text" placeholder="PIN" autocomplete="off" />
-    <button class="btn" id="btn-unlock">Entsperren</button>
+    <h1>🔒 Foto-Verwaltung</h1>
+    <div class="muted">Admin-PIN eingeben</div>
+    <input id="pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off" />
+    <button class="btn primary" id="btn-unlock">Entsperren</button>
     <div class="err" id="gate-err"></div>
   </section>
 
   <section id="app" class="hidden">
-    <h1>Foto-Moderation</h1>
+    <h1>Foto-Verwaltung</h1>
     <div class="bar">
       <span class="muted" id="status">…</span>
       <button class="btn" id="btn-refresh" style="margin-left:auto">↻ Aktualisieren</button>
     </div>
-    <div class="grid" id="grid"></div>
+    <div class="muted" style="margin-bottom:14px">Reihenfolge mit ▲▼ ändern · Kommentar bearbeiten + 💾 speichern · 🗑 entfernt vom Fernseher (bleibt auf dem Server gesichert).</div>
+    <div id="list"></div>
     <div class="empty hidden" id="empty">Noch keine Fotos.</div>
   </section>
+</div>
 
 <script>
 const $ = s => document.querySelector(s);
 let TOKEN = localStorage.getItem('pw_admin') || '';
+const q = s => encodeURIComponent(s);
 
-async function check(t){
-  const r = await fetch('/api/admin/check?token='+encodeURIComponent(t));
-  return r.ok;
-}
+async function check(t){ const r = await fetch('/api/admin/check?token='+q(t)); return r.ok; }
 async function unlock(t){
   if(await check(t)){ TOKEN=t; localStorage.setItem('pw_admin',t); $('#gate').classList.add('hidden'); $('#app').classList.remove('hidden'); load(); }
   else { $('#gate-err').textContent='Falsche PIN'; }
@@ -65,31 +80,79 @@ $('#btn-unlock').addEventListener('click', ()=> unlock($('#pin').value.trim()));
 $('#pin').addEventListener('keydown', e=>{ if(e.key==='Enter') unlock($('#pin').value.trim()); });
 $('#btn-refresh').addEventListener('click', load);
 
+function relock(){ localStorage.removeItem('pw_admin'); TOKEN=''; $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); $('#gate-err').textContent='Bitte erneut entsperren'; }
+
 async function load(){
   try{
-    const r = await fetch('/api/admin/photos?token='+encodeURIComponent(TOKEN));
+    const r = await fetch('/api/admin/photos?token='+q(TOKEN));
     if(r.status===401){ relock(); return; }
-    const data = await r.json();
-    const photos = data.photos||[];
+    const photos = (await r.json()).photos || [];
     $('#status').textContent = photos.length+' Foto'+(photos.length===1?'':'s');
     $('#empty').classList.toggle('hidden', photos.length>0);
-    const g = $('#grid'); g.innerHTML='';
-    for(const p of photos){
-      const t = document.createElement('div'); t.className='tile';
-      const im = document.createElement('img'); im.src=p.url; im.loading='lazy';
-      const b = document.createElement('button'); b.textContent='✕'; b.title='Entfernen';
-      b.addEventListener('click', ()=> hide(p.id, t));
-      t.appendChild(im); t.appendChild(b); g.appendChild(t);
-    }
+    const list = $('#list'); list.innerHTML='';
+    photos.forEach(p=> list.appendChild(card(p)));
+    refreshControls();
   }catch(e){ $('#status').textContent='Fehler beim Laden'; }
 }
-async function hide(id, tile){
-  if(!confirm('Dieses Foto vom Fernseher entfernen?')) return;
-  tile.classList.add('gone');
-  const r = await fetch('/api/photos/'+encodeURIComponent(id)+'/hide?token='+encodeURIComponent(TOKEN),{method:'POST'});
-  if(!r.ok){ tile.classList.remove('gone'); alert('Konnte nicht entfernt werden.'); }
+
+function card(p){
+  const el = document.createElement('div'); el.className='card'; el.dataset.id=p.id;
+  el.innerHTML = `
+    <div class="pic"><span class="pos"></span><img src="${p.url}" loading="lazy" alt=""></div>
+    <textarea maxlength="280" placeholder="Kommentar (erscheint auf dem Fernseher)…"></textarea>
+    <div class="row">
+      <button class="btn up" title="nach oben">▲</button>
+      <button class="btn down" title="nach unten">▼</button>
+      <button class="btn save" title="Kommentar speichern">💾 Kommentar speichern</button>
+      <button class="btn del" title="entfernen">🗑</button>
+    </div>
+    <div class="saved"></div>`;
+  el.querySelector('textarea').value = p.comment || '';
+  el.querySelector('.up').addEventListener('click', ()=> move(el,-1));
+  el.querySelector('.down').addEventListener('click', ()=> move(el,1));
+  el.querySelector('.save').addEventListener('click', ()=> saveComment(el));
+  el.querySelector('.del').addEventListener('click', ()=> del(el));
+  return el;
 }
-function relock(){ localStorage.removeItem('pw_admin'); TOKEN=''; $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); $('#gate-err').textContent='Bitte erneut entsperren'; }
+
+function cards(){ return [...$('#list').children]; }
+function refreshControls(){
+  const cs = cards();
+  cs.forEach((el,i)=>{
+    el.querySelector('.pos').textContent = '#'+(i+1);
+    el.querySelector('.up').disabled = i===0;
+    el.querySelector('.down').disabled = i===cs.length-1;
+  });
+}
+async function persistOrder(){
+  const ids = cards().map(el=>el.dataset.id);
+  try{ await fetch('/api/order?token='+q(TOKEN), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids})}); }
+  catch(e){}
+}
+function move(el, dir){
+  const list = $('#list');
+  if(dir<0 && el.previousElementSibling){ list.insertBefore(el, el.previousElementSibling); }
+  else if(dir>0 && el.nextElementSibling){ list.insertBefore(el.nextElementSibling, el); }
+  refreshControls(); persistOrder();
+}
+async function saveComment(el){
+  const txt = el.querySelector('textarea').value;
+  const out = el.querySelector('.saved'); out.textContent='…';
+  const fd = new FormData(); fd.append('comment', txt);
+  try{
+    const r = await fetch('/api/photos/'+q(el.dataset.id)+'/comment?token='+q(TOKEN), {method:'POST', body:fd});
+    out.textContent = r.ok ? 'gespeichert ✓' : 'Fehler';
+    setTimeout(()=>{ out.textContent=''; }, 2500);
+  }catch(e){ out.textContent='Fehler'; }
+}
+async function del(el){
+  if(!confirm('Foto vom Fernseher entfernen? (bleibt auf dem Server gesichert)')) return;
+  try{
+    const r = await fetch('/api/photos/'+q(el.dataset.id)+'/hide?token='+q(TOKEN), {method:'POST'});
+    if(r.ok){ el.remove(); refreshControls(); $('#status').textContent = cards().length+' Foto'+(cards().length===1?'':'s'); $('#empty').classList.toggle('hidden', cards().length>0); }
+    else alert('Konnte nicht entfernt werden.');
+  }catch(e){ alert('Fehler.'); }
+}
 
 if(TOKEN){ check(TOKEN).then(ok=>{ if(ok){ $('#gate').classList.add('hidden'); $('#app').classList.remove('hidden'); load(); } }); }
 </script>

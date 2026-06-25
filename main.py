@@ -21,6 +21,7 @@ Endpoints
   GET  /healthz               Healthcheck
 """
 import io
+import json
 import os
 import re
 import time
@@ -30,6 +31,7 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from PIL import Image, ImageOps
 
 # HEIC/HEIF-Support (iPhone-Fotos) — Wheel bringt libheif mit, daher optional.
@@ -61,6 +63,7 @@ MAX_COMMENT = 280
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 HIDDEN_DIR.mkdir(parents=True, exist_ok=True)
+ORDER_FILE = DATA_DIR / "order.json"
 
 STATIC = Path(__file__).parent / "static"
 
@@ -80,6 +83,34 @@ def _list_ids(since: str = "") -> list[str]:
         ids = [i for i in ids if i > since]
     ids.sort()
     return ids
+
+
+def _load_order() -> list[str]:
+    try:
+        data = json.loads(ORDER_FILE.read_text(encoding="utf-8"))
+        return [i for i in data if isinstance(i, str)]
+    except Exception:
+        return []
+
+
+def _save_order(ids: list[str]) -> None:
+    ORDER_FILE.write_text(json.dumps(ids), encoding="utf-8")
+
+
+def _ordered_ids() -> list[str]:
+    """Anzeige-Reihenfolge: zuerst die in order.json gespeicherte Reihenfolge
+    (nur noch existierende), dann der Rest chronologisch (neue Uploads hängen
+    hinten an, bis der Admin umsortiert)."""
+    existing = [p.stem for p in UPLOAD_DIR.glob("*.jpg")]
+    existing_set = set(existing)
+    ordered = [i for i in _load_order() if i in existing_set]
+    in_order = set(ordered)
+    rest = sorted(i for i in existing if i not in in_order)
+    return ordered + rest
+
+
+class OrderIn(BaseModel):
+    ids: list[str]
 
 
 def _clean_comment(text: str) -> str:
@@ -125,11 +156,11 @@ def get_config(request: Request):
 
 
 @app.get("/api/photos")
-def get_photos(since: str = Query("")):
-    ids = _list_ids(since)
+def get_photos():
+    ids = _ordered_ids()
     return {
         "photos": [{"id": i, "url": f"/photo/{i}", "comment": _read_comment(i)} for i in ids],
-        "count": len(_list_ids()),
+        "count": len(ids),
     }
 
 
@@ -182,8 +213,7 @@ def admin_check(token: str = Query("")):
 @app.get("/api/admin/photos")
 def admin_photos(token: str = Query("")):
     _require_admin(token)
-    ids = _list_ids()
-    ids.reverse()  # neueste zuerst
+    ids = _ordered_ids()  # exakt die TV-Reihenfolge
     return {"photos": [{"id": i, "url": f"/photo/{i}", "comment": _read_comment(i)} for i in ids]}
 
 
@@ -196,7 +226,32 @@ def hide_photo(pid: str, token: str = Query("")):
         f = UPLOAD_DIR / f"{pid}.{ext}"
         if f.exists():
             f.rename(HIDDEN_DIR / f"{pid}.{ext}")
+    _save_order([i for i in _load_order() if i != pid])
     return {"ok": True}
+
+
+@app.post("/api/photos/{pid}/comment")
+def set_comment(pid: str, comment: str = Form(""), token: str = Query("")):
+    _require_admin(token)
+    if not ID_RE.match(pid):
+        raise HTTPException(status_code=404, detail="Not found")
+    if not (UPLOAD_DIR / f"{pid}.jpg").exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    text = _clean_comment(comment)
+    f = UPLOAD_DIR / f"{pid}.txt"
+    if text:
+        f.write_text(text, encoding="utf-8")
+    elif f.exists():
+        f.unlink()
+    return {"ok": True, "comment": text}
+
+
+@app.post("/api/order")
+def set_order(body: OrderIn, token: str = Query("")):
+    _require_admin(token)
+    clean = [i for i in body.ids if ID_RE.match(i)]
+    _save_order(clean)
+    return {"ok": True, "count": len(clean)}
 
 
 @app.get("/api/qr.png")
