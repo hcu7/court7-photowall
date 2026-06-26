@@ -263,11 +263,11 @@ function dwellFor(comment, spotlight){
 
 async function show(id, spotlight){
   const inc = layers[(cur+1)%2], out = layers[cur];
-  const fgUrl = `/photo/${id}?w=1600`;   // scharfes Bild — schneller Decode (Fire-TV)
-  const bgUrl = `/photo/${id}?w=320`;    // winziger Blur-Hintergrund — kaum GPU-Last
-  await Promise.all([decode(fgUrl), decode(bgUrl)]);   // beide fertig -> kein verspäteter Hintergrund
+  const fgUrl = `/photo/${id}`;          // VOLLES Bild — zuverlässig, kein Resize-Stau unter Last (kein Schwarz)
+  const bgUrl = `/photo/${id}?w=320`;    // winziger Blur-Hintergrund (best effort, lädt async)
+  await decode(fgUrl);                    // nur das sichtbare Foto abwarten
   inc.fg.style.backgroundImage = `url("${fgUrl}")`;
-  inc.bg.style.backgroundImage = `url("${bgUrl}")`;
+  inc.bg.style.backgroundImage = `url("${bgUrl}")`;   // bg ohne decode-gate -> blockiert das Foto nie
   inc.fg.style.animation = 'none'; void inc.fg.offsetWidth;
   inc.fg.style.animation = `kb ${(spotlight?SPOTLIGHT:SLIDE)+1.5}s ease-out forwards`;
   inc.root.style.zIndex = 2; out.root.style.zIndex = 1;
@@ -378,8 +378,8 @@ async function ceremonyTick(){
   }
 
   // 'reveal' | 'big' -> Foto IMMER sichtbar (auch bei der Gemeinsamkeit)
-  const fgU = sl.url + '?w=1600', bgU = sl.url + '?w=320';
-  await Promise.all([decode(fgU), decode(bgU)]);
+  const fgU = sl.url, bgU = sl.url + '?w=320';   // volles Foto (zuverlässig) + winziger Blur-BG
+  await decode(fgU);
   $('#cer-card').style.display = 'none'; $('#cer-photo').style.display = 'block';
   $('#cer-bg').style.backgroundImage = `url("${bgU}")`;
   $('#cer-fg').style.backgroundImage = `url("${fgU}")`;
