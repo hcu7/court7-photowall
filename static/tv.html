@@ -14,7 +14,7 @@
   .layer{position:absolute; inset:0; opacity:0; background:#0a0d14;
     transition:opacity .9s ease; will-change:opacity; transform:translateZ(0); backface-visibility:hidden}
   .layer .bg{position:absolute; inset:0; background-size:cover; background-position:center;
-    filter:blur(22px) brightness(.5); transform:scale(1.1) translateZ(0)}
+    filter:blur(16px) brightness(.5); transform:scale(1.1) translateZ(0)}
   .layer .fg{position:absolute; inset:0; background-size:contain; background-position:center;
     background-repeat:no-repeat; transform:translateZ(0)}
 
@@ -98,7 +98,7 @@
   #cer-big:empty{display:none}
   #cer-sub{font-size:clamp(16px,2vw,28px); opacity:.85; max-width:24em}
   #ceremony .cer-photo{position:absolute; inset:0; display:none}
-  #cer-bg{position:absolute; inset:0; background-size:cover; background-position:center; filter:blur(28px) brightness(.4); transform:scale(1.1)}
+  #cer-bg{position:absolute; inset:0; background-size:cover; background-position:center; filter:blur(18px) brightness(.4); transform:scale(1.1)}
   #cer-fg{position:absolute; inset:0; background-size:contain; background-position:center; background-repeat:no-repeat; transition:inset .5s ease}
   #ceremony.reveal #cer-fg{inset:0 0 27% 0}
   #cer-caption{position:absolute; left:0; right:0; bottom:0; height:27%; display:none; flex-direction:column; align-items:center; justify-content:center; gap:clamp(8px,1.4vh,18px); text-align:center; padding:0 6vw 5vh; background:linear-gradient(0deg, rgba(10,13,20,.95), rgba(10,13,20,.55) 62%, transparent)}
@@ -253,10 +253,11 @@ function dwellFor(comment, spotlight){
 
 async function show(id, spotlight){
   const inc = layers[(cur+1)%2], out = layers[cur];
-  const url = `/photo/${id}`;
-  await decode(url);
-  inc.fg.style.backgroundImage = `url("${url}")`;
-  inc.bg.style.backgroundImage = `url("${url}")`;
+  const fgUrl = `/photo/${id}?w=1600`;   // scharfes Bild — schneller Decode (Fire-TV)
+  const bgUrl = `/photo/${id}?w=320`;    // winziger Blur-Hintergrund — kaum GPU-Last
+  await Promise.all([decode(fgUrl), decode(bgUrl)]);   // beide fertig -> kein verspäteter Hintergrund
+  inc.fg.style.backgroundImage = `url("${fgUrl}")`;
+  inc.bg.style.backgroundImage = `url("${bgUrl}")`;
   inc.fg.style.animation = 'none'; void inc.fg.offsetWidth;
   inc.fg.style.animation = `kb ${(spotlight?SPOTLIGHT:SLIDE)+1.5}s ease-out forwards`;
   inc.root.style.zIndex = 2; out.root.style.zIndex = 1;
@@ -366,10 +367,11 @@ async function ceremonyTick(){
   }
 
   // 'reveal' | 'big' -> Foto IMMER sichtbar (auch bei der Gemeinsamkeit)
-  await decode(sl.url);
+  const fgU = sl.url + '?w=1600', bgU = sl.url + '?w=320';
+  await Promise.all([decode(fgU), decode(bgU)]);
   $('#cer-card').style.display = 'none'; $('#cer-photo').style.display = 'block';
-  $('#cer-bg').style.backgroundImage = `url("${sl.url}")`;
-  $('#cer-fg').style.backgroundImage = `url("${sl.url}")`;
+  $('#cer-bg').style.backgroundImage = `url("${bgU}")`;
+  $('#cer-fg').style.backgroundImage = `url("${fgU}")`;
   if(sl.type === 'reveal'){
     cerMode('reveal');
     $('#cer-cap-kicker').textContent = '🏆 ' + sl.kicker;
@@ -451,7 +453,20 @@ async function pollCeremony(){
 })();
 
 document.body.addEventListener('click', ()=>{ const el=document.documentElement; if(el.requestFullscreen) el.requestFullscreen().catch(()=>{}); });
-if('wakeLock' in navigator){ const req=()=>navigator.wakeLock.request('screen').catch(()=>{}); req(); document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') req(); }); }
+// Bildschirm wach halten — robust: Re-Acquire nach Freigabe + periodisch + bei Sichtbarkeit.
+// (Vorher nur einmaliger Request -> nach Freigabe durch den Browser kam der TV-Bildschirmschoner.)
+let _wakeLock = null;
+async function keepAwake(){
+  try{
+    if('wakeLock' in navigator && document.visibilityState === 'visible' && !_wakeLock){
+      _wakeLock = await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release', ()=>{ _wakeLock = null; });
+    }
+  }catch(e){ _wakeLock = null; }
+}
+keepAwake();
+setInterval(keepAwake, 15000);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') keepAwake(); });
 </script>
 </body>
 </html>

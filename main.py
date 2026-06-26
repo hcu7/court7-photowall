@@ -277,18 +277,40 @@ def get_photos():
     }
 
 
+_RESIZE_CACHE: dict = {}  # (pid, w) -> jpeg bytes; entlastet den Fire-TV (kleinere Bilder)
+
 @app.get("/photo/{pid}")
-def get_photo(pid: str):
+def get_photo(pid: str, w: int = 0):
     if not ID_RE.match(pid):
         raise HTTPException(status_code=404, detail="Not found")
+    hdr = {"Cache-Control": "public, max-age=31536000, immutable"}
+    # Verkleinerte Variante (TV: scharfes fg ~1600px, Blur-Hintergrund ~320px) — gecacht.
+    if w and 48 <= w <= 2200:
+        ck = (pid, w)
+        out = _RESIZE_CACHE.get(ck)
+        if out is None:
+            data = db_photo(pid)
+            if data is None:
+                raise HTTPException(status_code=404, detail="Not found")
+            try:
+                im = Image.open(io.BytesIO(data))
+                im = ImageOps.exif_transpose(im)
+                if im.mode != "RGB":
+                    im = im.convert("RGB")
+                im.thumbnail((w, w), Image.Resampling.LANCZOS)
+                b = io.BytesIO()
+                im.save(b, "JPEG", quality=82, optimize=True)
+                out = b.getvalue()
+            except Exception:
+                out = data  # Fallback: Original
+            if len(_RESIZE_CACHE) > 600:
+                _RESIZE_CACHE.clear()
+            _RESIZE_CACHE[ck] = out
+        return Response(content=out, media_type="image/jpeg", headers=hdr)
     data = db_photo(pid)
     if data is None:
         raise HTTPException(status_code=404, detail="Not found")
-    return Response(
-        content=data,
-        media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
-    )
+    return Response(content=data, media_type="image/jpeg", headers=hdr)
 
 
 @app.post("/api/upload")
