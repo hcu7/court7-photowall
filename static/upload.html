@@ -31,10 +31,9 @@
   .card{background:var(--card); border:1px solid var(--line); border-radius:22px;
     box-shadow:0 12px 40px rgba(60,40,10,.10); padding:20px; margin-top:14px}
 
-  ol.steps{margin:0; padding:0; list-style:none; counter-reset:s}
-  ol.steps li{counter-increment:s; display:flex; gap:12px; align-items:flex-start; padding:9px 0; font-size:15.5px}
-  ol.steps li::before{content:counter(s); flex:0 0 26px; width:26px; height:26px; border-radius:50%;
-    background:var(--accent); color:#fff; font-weight:800; font-size:14px; display:grid; place-items:center; margin-top:1px}
+  .lead{margin:0; font-size:16px; font-weight:700; line-height:1.35}
+  .game{background:#f0f7f2; border:1px solid #bfe0cc; border-radius:16px; padding:14px 16px; margin-top:14px; font-size:15px; line-height:1.4}
+  .game-h{font-weight:800; color:#1f6b4d; margin-bottom:6px; font-size:15.5px}
 
   .hint{display:flex; align-items:center; gap:12px; background:#fff7ed; border:1px solid #fed7aa;
     color:var(--warn); border-radius:16px; padding:12px 14px; margin-top:14px; font-size:14.5px; font-weight:600}
@@ -98,18 +97,18 @@
   <header>
     <div class="kicker">📸 Foto-Wall</div>
     <h1 id="title">…</h1>
-    <div class="sub">Mach ein Selfie mit deiner Person — es erscheint live auf dem Fernseher!</div>
+    <div class="sub">Teile deine Fotos vom Abend — sie erscheinen live auf dem Fernseher. 🎉</div>
   </header>
 
   <!-- START -->
   <section id="view-start">
     <div class="card">
-      <ol class="steps">
-        <li>Zettel aus dem Glas gezogen?</li>
-        <li>Finde die Person, auf die der Satz passt.</li>
-        <li>Macht zusammen ein Selfie.</li>
-        <li>Hier hochladen — fertig! 🎉</li>
-      </ol>
+      <p class="lead">📸 Lade einfach Fotos vom Abend hoch — sie erscheinen sofort live auf dem Fernseher.</p>
+      <div class="game">
+        <div class="game-h">🎲 Mitmach-Spiel</div>
+        Finde jemanden, mit dem du <b>etwas gemeinsam</b> hast — <b>kein Beruf, kein Wohnort!</b>
+        Macht zusammen ein Foto und schreibt eure Gemeinsamkeit unten als Kommentar dazu.
+      </div>
       <div class="hint">
         <span class="rotate" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
@@ -128,8 +127,8 @@
       <div class="warnbar" id="warn-portrait">📱 Hochkant erkannt — quer sieht auf dem Fernseher schöner aus. Du kannst es trotzdem hochladen.</div>
       <div class="notice" id="notice-cap"></div>
       <div class="field">
-        <label for="comment">Kommentar (optional) — erscheint auf dem Fernseher 📺</label>
-        <textarea id="comment" maxlength="280" rows="2" placeholder="z. B. Beste Tanzpartnerin des Abends! 💃"></textarea>
+        <label for="comment">Eure Gemeinsamkeit ✍️ <span style="font-weight:400">(oder ein Spruch zum Foto) — erscheint auf dem Fernseher 📺</span></label>
+        <textarea id="comment" maxlength="280" rows="2" placeholder="z. B. Wir waren beide schon in Neuseeland 🥝"></textarea>
         <div class="cc"><span id="cc">0</span>/280</div>
       </div>
       <div class="progress" id="progress"><i></i></div>

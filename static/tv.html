@@ -59,8 +59,9 @@
   #ad.show{opacity:1}
   #ad .ad-left{flex:0 0 42%; display:flex; flex-direction:column; justify-content:space-between;
     padding:clamp(28px,4vw,64px)}
-  #ad .ad-brand{font-size:clamp(28px,3.6vw,56px); font-weight:900; letter-spacing:.04em}
-  #ad .ad-brand small{display:block; font-size:.34em; font-weight:700; letter-spacing:.22em; opacity:.75; margin-top:6px}
+  #ad .ad-brand{display:flex; flex-direction:column; align-items:flex-start}
+  #ad .ad-logo{height:clamp(40px,5vw,74px); width:auto; display:block}
+  #ad .ad-brand small{font-size:clamp(13px,1.4vw,19px); font-weight:700; letter-spacing:.2em; opacity:.8; margin-top:12px}
   #ad .ad-kicker{color:var(--accent); font-weight:800; letter-spacing:.14em; text-transform:uppercase; font-size:clamp(12px,1.3vw,18px)}
   #ad .ad-line{font-size:clamp(26px,3.4vw,52px); font-weight:800; line-height:1.1; margin:10px 0 22px}
   #ad .ad-prod{font-size:clamp(16px,1.7vw,24px); font-weight:700; opacity:.9}
@@ -70,8 +71,10 @@
   #ad .ad-qr{display:flex; align-items:center; gap:16px}
   #ad .ad-qr img{width:clamp(96px,9vw,150px); height:clamp(96px,9vw,150px); background:#fff; padding:8px; border-radius:14px}
   #ad .ad-qr div{font-size:clamp(14px,1.4vw,20px); font-weight:700; line-height:1.3}
-  #ad .ad-right{flex:1; background:#f6efe2; display:flex; align-items:center; justify-content:center; padding:clamp(20px,3vw,56px)}
-  #ad .ad-right img{max-width:100%; max-height:100%; object-fit:contain; border-radius:10px}
+  #ad .ad-right{flex:1; background:#f6efe2; display:flex; align-items:center; justify-content:center; gap:16px; padding:clamp(20px,3vw,56px)}
+  #ad .ad-right img{max-height:100%; object-fit:contain; border-radius:10px}
+  #ad .ad-right img.one{max-width:100%}
+  #ad .ad-right img.two{max-width:48%}
   #ad .ad-tag{position:absolute; top:22px; right:28px; font-size:clamp(11px,1.1vw,15px); font-weight:700;
     opacity:.7; background:rgba(0,0,0,.25); padding:6px 14px; border-radius:999px}
 
@@ -109,7 +112,7 @@
 
   <div id="ad" class="hidden">
     <div class="ad-left">
-      <div class="ad-brand">COURT7<small>court7.eu</small></div>
+      <div class="ad-brand"><img class="ad-logo" src="/static/ad/logo-white.png" alt="COURT7" /><small>court7.eu</small></div>
       <div>
         <div class="ad-kicker">In eigener Sache 😄</div>
         <div class="ad-line" id="ad-line"></div>
@@ -119,7 +122,7 @@
       </div>
       <div class="ad-qr"><img id="ad-qr" alt="QR" /><div>Scannen →<br><b>court7.eu</b></div></div>
     </div>
-    <div class="ad-right"><img id="ad-img" alt="" /></div>
+    <div class="ad-right" id="ad-imgs"></div>
     <div class="ad-tag">Werbung · gleich geht's weiter</div>
   </div>
 
@@ -142,10 +145,13 @@ const AD_SECONDS = 9;
 
 // COURT7-Produkte für die Werbung (Bilder liegen lokal in /static/ad)
 const ADS = [
-  { img:'/static/ad/prod-green-tee.jpg',  title:'AD-IN Tee Green · COURT7-Backprint', price:'45 €', line:'Backprint. Bold. Grün.',        url:'https://court7.eu/products/ad-in-200-basic-tee-green' },
-  { img:'/static/ad/prod-bottle.jpg',     title:'COURT7 Sportflasche · 1 L',          price:'20 €', line:'1 Liter Style für die Bank.',   url:'https://court7.eu/products/court-7-sportflasche' },
-  { img:'/static/ad/prod-cap.jpg',        title:'Court Cap',                          price:'25 €', line:'Cap auf, Sonne raus.',         url:'https://court7.eu/products/court-cap' },
-  { img:'/static/ad/prod-red-raglan.jpg', title:'Performance Tee Raglan Red',         price:'45 €', line:'Spiel, Satz, Style.',          url:'https://court7.eu/products/performance-raglan-contrast-tee-red' },
+  { line:'Backprint. Bold. Grün.',        title:'AD-IN Tee Green · COURT7-Backprint', price:'45 €',   url:'https://court7.eu/products/ad-in-200-basic-tee-green',          imgs:['/static/ad/prod-green-tee.jpg'] },
+  { line:'Der grüne Court-Look.',         title:'Tee + Shorts · Green Match',         price:'ab 45 €', url:'https://court7.eu/collections/all',                            imgs:['/static/ad/prod-green-tee.jpg','/static/ad/prod-shorts-green.jpg'] },
+  { line:'Cool durchgespielt — in Blau.', title:'Performance Tee + Shorts · Blue',    price:'ab 45 €', url:'https://court7.eu/collections/all',                            imgs:['/static/ad/prod-blue-tee.jpg','/static/ad/prod-shorts-blue.jpg'] },
+  { line:'1 Liter Style für die Bank.',   title:'COURT7 Sportflasche · 1 L',          price:'20 €',   url:'https://court7.eu/products/court-7-sportflasche',               imgs:['/static/ad/prod-bottle.jpg'] },
+  { line:'Spiel, Satz, Style.',           title:'Performance Tee Raglan Red',         price:'45 €',   url:'https://court7.eu/products/performance-raglan-contrast-tee-red', imgs:['/static/ad/prod-red-raglan.jpg'] },
+  { line:'Cap auf, Sonne raus.',          title:'Court Cap',                          price:'25 €',   url:'https://court7.eu/products/court-cap',                          imgs:['/static/ad/prod-cap.jpg'] },
+  { line:'Gehört auf jeden Court.',       title:'COURT7 Tennissocken · 2er-Pack',     price:'11 €',   url:'https://court7.eu/products/sock',                               imgs:['/static/ad/prod-socks.jpg'] },
 ];
 
 let order = [];               // IDs in Anzeige-Reihenfolge (vom Server)
@@ -220,9 +226,11 @@ async function showAd(ad){
   $('#ad-line').textContent = ad.line;
   $('#ad-title').textContent = ad.title;
   $('#ad-price').textContent = ad.price;
-  $('#ad-img').src = ad.img;
   $('#ad-qr').src = '/api/qr.png?data=' + encodeURIComponent(ad.url);
-  await decode(ad.img);
+  const wrap = $('#ad-imgs'); wrap.innerHTML = '';
+  const cls = ad.imgs.length > 1 ? 'two' : 'one';
+  for(const src of ad.imgs){ const im = document.createElement('img'); im.className = cls; im.src = src; wrap.appendChild(im); }
+  await Promise.all(ad.imgs.map(decode));
   $('#ad').classList.remove('hidden'); void $('#ad').offsetWidth;
   $('#ad').classList.add('show');
   await sleep(AD_SECONDS*1000);
