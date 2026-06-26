@@ -329,7 +329,11 @@ function buildCerSlides(){
     s.push({type:'big',    url});
   };
   if(w.commonality) add('Originellste Gemeinsamkeit', w.commonality.url, '„'+w.commonality.text+'"');
-  if(w.photo)       add('Originellstes Foto des Abends', w.photo.url, w.photo.desc||'');
+  if(w.photo){
+    // KI-Beschreibung NICHT auf dem TV zeigen — stattdessen den Kommentar des Bildes (falls vorhanden).
+    const c = (meta.get(w.photo.id) || '').trim();
+    add('Originellstes Foto des Abends', w.photo.url, c ? '„'+c+'"' : '');
+  }
   if(!s.length) s.push({type:'wait'});
   return s;
 }
