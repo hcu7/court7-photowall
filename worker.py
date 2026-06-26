@@ -43,6 +43,7 @@ VERTEX_PROJECT = (_SA_INFO.get("project_id") or os.environ.get("VERTEX_PROJECT_I
 VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "europe-west3").strip()
 VERTEX_MODEL = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash").strip()
 SCORE_BATCH = int(os.environ.get("SCORE_BATCH", "15"))
+SCORING_VERSION = "2"   # bei Prompt-Aenderung erhoehen -> kommentierte Fotos werden 1x neu bewertet
 SCORING_ON = bool(VERTEX_SA_JSON and VERTEX_PROJECT)
 
 _SCORE_PROMPT = (
@@ -50,13 +51,20 @@ _SCORE_PROMPT = (
     "Antworte NUR mit JSON: "
     '{"photo_score": <0-100 ganzzahlig>, '
     '"photo_desc": "<charmante deutsche Kurzbeschreibung des Fotos, max 12 Woerter>", '
+    '"is_commonality": <true|false>, '
     '"comm_score": <0-100 ganzzahlig oder null>}. '
     "photo_score = wie originell/witzig/besonders das FOTO ist "
     "(0815-Schnappschuss ~40, kreativ/lustig/ueberraschend ~80+). "
-    "comm_score = wie originell die angegebene GEMEINSAMKEIT ist "
-    "(banal wie 'beide moegen Pizza' ~30, spezifisch/ueberraschend ~80+); "
-    "null wenn keine Gemeinsamkeit angegeben. "
-    "Angegebene Gemeinsamkeit: {COMMENT}"
+    "Das Kommentarfeld wird MAL fuer eine Gemeinsamkeit, MAL nur fuer einen normalen "
+    "Kommentar/Gruss genutzt. is_commonality = true NUR wenn der Text tatsaechlich eine "
+    "GEMEINSAMKEIT zweier Personen beschreibt (etwas das beide teilen/gemeinsam haben, "
+    "z.B. 'Wir waren beide 2009 in Australien', 'haben am selben Tag Geburtstag', "
+    "'beide hassen Koriander'). false bei normalen Kommentaren/Bildunterschriften/Gruessen "
+    "('Vamos', 'Tolle Party', 'Ich und meine Curva', 'Vielen Dank fuer die Blumen', reine Emojis). "
+    "Im Zweifel false. "
+    "comm_score = Originalitaet der Gemeinsamkeit (banal ~30, spezifisch/ueberraschend ~80+) "
+    "WENN is_commonality true, sonst null. "
+    "Text im Kommentarfeld: {COMMENT}"
 )
 
 _sa_creds = None
@@ -100,8 +108,9 @@ def score_photo(jpg: bytes, comment: str):
     txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
     d = json.loads(txt)
     ps = float(d.get("photo_score") or 0)
+    is_comm = bool(d.get("is_commonality"))
     cs = d.get("comm_score")
-    cs = float(cs) if cs is not None else None
+    cs = float(cs) if (is_comm and cs is not None) else None  # nur echte Gemeinsamkeiten zaehlen
     return ps, (d.get("photo_desc") or "")[:200], cs
 
 
@@ -160,6 +169,28 @@ def run_scoring() -> int:
     return done
 
 
+def maybe_rescore():
+    """Bei geaenderter Scoring-Logik (SCORING_VERSION) kommentierte Fotos einmalig neu bewerten."""
+    if not SCORING_ON:
+        return
+    try:
+        with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
+            c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+            row = c.execute("SELECT value FROM settings WHERE key='scoring_version'").fetchone()
+            cur = row[0] if row else "0"
+            if cur != SCORING_VERSION:
+                n = c.execute("UPDATE photos SET scored=FALSE WHERE hidden=FALSE AND comment <> ''").rowcount
+                c.execute(
+                    "INSERT INTO settings (key, value) VALUES ('scoring_version', %s) "
+                    "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
+                    (SCORING_VERSION,),
+                )
+                c.commit()
+                print(f"[score] Prompt v{SCORING_VERSION}: {n} kommentierte Fotos zur Neu-Bewertung markiert", flush=True)
+    except Exception as e:
+        print(f"[score] rescore-check error: {e}", flush=True)
+
+
 def run_once(svc) -> int:
     with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
         rows = c.execute(
@@ -210,6 +241,7 @@ def main():
         f"scoring={'an ('+VERTEX_MODEL+'/'+VERTEX_LOCATION+')' if SCORING_ON else 'aus'}",
         flush=True,
     )
+    maybe_rescore()
     while True:
         try:
             n = run_once(_drive())

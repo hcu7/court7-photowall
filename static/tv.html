@@ -59,6 +59,13 @@
     display:none; max-width:84vw; text-align:center}
   #winnerbadge.show{display:block}
 
+  /* "Wettbewerb beendet – Siegerehrung folgt" (oben, solange Sieger noch nicht gezeigt) */
+  #endbanner{position:fixed; top:clamp(96px,12vh,150px); left:50%; transform:translateX(-50%) translateY(-8px); z-index:12;
+    background:linear-gradient(135deg,#e0a04a,#c8772f); color:#0a0d14; font-weight:900;
+    font-size:clamp(15px,1.9vw,28px); padding:12px 30px; border-radius:999px; box-shadow:0 8px 30px rgba(0,0,0,.5);
+    white-space:nowrap; max-width:92vw; text-align:center; opacity:0; pointer-events:none; transition:opacity .4s ease, transform .4s ease}
+  #endbanner.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
   /* COURT7-Werbung (alle paar Bilder) */
   #feat{position:fixed; inset:0; z-index:30; display:flex; opacity:0; transition:opacity .6s ease;
     background:linear-gradient(135deg,var(--green),var(--green2) 70%)}
@@ -156,6 +163,8 @@
     <div class="feat-tag">Werbung · gleich geht's weiter</div>
   </div>
 
+  <div id="endbanner">🏆 Wettbewerb beendet — Siegerehrung folgt</div>
+
   <div id="ceremony" class="hidden">
     <div class="cer-photo" id="cer-photo">
       <div class="cer-bg" id="cer-bg"></div>
@@ -212,6 +221,7 @@ let initialized = false;
 let shownSinceAd = 0, adIdx = 0;
 let ceremony = { active:false, winners:{} };   // Sieger-Show
 let cerSlides = [], cerIdx = 0;
+let cerFirstPass = true;   // Countdown nur beim 1. Durchlauf einer Sieger-Show
 
 const layers = [
   { root:$('#layerA'), bg:$('#layerA .bg'), fg:$('#layerA .fg') },
@@ -272,7 +282,7 @@ async function show(id, spotlight){
 
   // Sieger-Badge: nach Wettbewerbsende werden die Siegerfotos in der Diashow markiert.
   let wt = '';
-  if(ceremony.state === 'ended'){
+  if(ceremony.state === 'ended' && ceremony.revealed){   // Badges erst NACH der Sieger-Show
     const w = ceremony.winners || {};
     if(w.commonality && w.commonality.id === id) wt = '🏆 Originellste Gemeinsamkeit';
     if(w.photo && w.photo.id === id) wt = (wt ? wt + '  ·  ' : '') + '🏆 Originellstes Foto';
@@ -325,7 +335,7 @@ function buildCerSlides(){
   const w = ceremony.winners || {}; const s = [];
   // Pro Sieger: 5s-Countdown (mit Hinweis) -> Foto sichtbar + Text darunter -> Foto nochmal groß.
   const add = (kicker, url, text) => {
-    s.push({type:'count',  kicker});
+    if(cerFirstPass) s.push({type:'count', kicker});   // Countdown nur beim 1. Durchlauf
     s.push({type:'reveal', kicker, url, text});
     s.push({type:'big',    url});
   };
@@ -342,6 +352,7 @@ function buildCerSlides(){
 function cerMode(m){ const c = $('#ceremony'); c.classList.remove('reveal','big'); if(m) c.classList.add(m); }
 
 async function ceremonyTick(){
+  if(cerSlides.length && cerIdx >= cerSlides.length) cerFirstPass = false;  // ab 2. Durchlauf kein Countdown
   if(!cerSlides.length || cerIdx >= cerSlides.length){ cerSlides = buildCerSlides(); cerIdx = 0; }
   const sl = cerSlides[cerIdx++];
   $('#ceremony').classList.remove('hidden');
@@ -441,7 +452,15 @@ async function poll(){
 }
 
 async function pollCeremony(){
-  try{ ceremony = await (await fetch('/api/ceremony')).json(); }catch(e){}
+  try{
+    const wasActive = ceremony.active;
+    ceremony = await (await fetch('/api/ceremony')).json();
+    // Show (neu) gestartet -> Countdown wieder ab dem 1. Durchlauf zeigen.
+    if(ceremony.active && !wasActive){ cerFirstPass = true; cerSlides = []; cerIdx = 0; }
+    // Banner "Wettbewerb beendet – Siegerehrung folgt": nur solange beendet + Sieger noch NICHT gezeigt.
+    const eb = $('#endbanner');
+    if(eb) eb.classList.toggle('show', ceremony.state === 'ended' && !ceremony.revealed && !ceremony.active);
+  }catch(e){}
 }
 
 (async function start(){

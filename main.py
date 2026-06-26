@@ -422,12 +422,14 @@ def _deadline_passed(end: str) -> bool:
 def _end_competition():
     setting_set("winners_locked", json.dumps(_compute_winners()))
     setting_set("comp_state", "ended")
+    setting_set("winners_revealed", "0")  # Sieger erst NACH der Sieger-Show in der Diashow markieren
 
 
 @app.post("/api/ceremony/start")
 def ceremony_start(token: str = Query("")):
     _require_admin(token)
     setting_set("ceremony_active", "1")
+    setting_set("winners_revealed", "1")  # Sieger gelten ab jetzt als gezeigt -> Badges in der Diashow
     return {"ok": True, "winners": _current_winners()}
 
 
@@ -451,6 +453,7 @@ def ceremony_reopen(token: str = Query("")):
     _require_admin(token)
     setting_set("comp_state", "live")
     setting_set("winners_locked", "")
+    setting_set("winners_revealed", "0")
     return {"ok": True}
 
 
@@ -469,11 +472,13 @@ def ceremony_get():
     if state == "live" and _deadline_passed(end):
         _end_competition()
         setting_set("ceremony_active", "1")
+        setting_set("winners_revealed", "1")  # Deadline startet Sieger-Show automatisch
         state = "ended"
     return {
         "active": setting_get("ceremony_active", "0") == "1",
         "state": state,
         "end": end,
+        "revealed": setting_get("winners_revealed", "0") == "1",
         "winners": _current_winners(),
     }
 
