@@ -80,7 +80,12 @@ def score_photo(jpg: bytes, comment: str):
             {"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(jpg).decode()}},
             {"text": _SCORE_PROMPT.replace("{COMMENT}", comment or "(keine)")},
         ]}],
-        "generationConfig": {"temperature": 0, "responseMimeType": "application/json", "maxOutputTokens": 400},
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+            "maxOutputTokens": 1024,
+            "thinkingConfig": {"thinkingBudget": 0},  # 2.5-flash: Thinking aus, sonst MAX_TOKENS-Abbruch
+        },
     }
     url = (
         f"https://{VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/{VERTEX_PROJECT}"
