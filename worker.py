@@ -44,6 +44,7 @@ VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "europe-west3").strip()
 VERTEX_MODEL = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash").strip()
 SCORE_BATCH = int(os.environ.get("SCORE_BATCH", "15"))
 SCORING_VERSION = "2"   # bei Prompt-Aenderung erhoehen -> kommentierte Fotos werden 1x neu bewertet
+_score_fails: dict = {}  # id -> Fehlversuche; nach 3x aufgeben, damit ein Problembild den Batch nicht blockiert
 SCORING_ON = bool(VERTEX_SA_JSON and VERTEX_PROJECT)
 
 _SCORE_PROMPT = (
@@ -137,9 +138,18 @@ def ensure_schema():
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS comm_score DOUBLE PRECISION",
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_score DOUBLE PRECISION",
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_desc TEXT",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS data_bg BYTEA",
         ):
             c.execute(ddl)
         c.commit()
+
+
+def _is_transient(e) -> bool:
+    """Voruebergehende Vertex-/Netzfehler — die duerfen NICHT zum 3-Strike-Aufgeben zaehlen."""
+    if isinstance(e, (requests.Timeout, requests.ConnectionError)):
+        return True
+    resp = getattr(e, "response", None)
+    return resp is not None and getattr(resp, "status_code", 0) in (429, 500, 502, 503, 504)
 
 
 def run_scoring() -> int:
@@ -156,8 +166,19 @@ def run_scoring() -> int:
         try:
             ps, desc, cs = score_photo(bytes(data), comment)
         except Exception as e:
-            print(f"[score] error {pid}: {e}", flush=True)
-            continue  # spaeter erneut versuchen
+            if _is_transient(e):   # Vertex/Netz vorübergehend gestört -> NICHT als Fehlversuch werten
+                print(f"[score] transient {pid}: {e} -> später erneut", flush=True)
+                continue
+            n = _score_fails.get(pid, 0) + 1
+            _score_fails[pid] = n
+            print(f"[score] error {pid} (Versuch {n}): {e}", flush=True)
+            if n >= 3:  # nur dauerhaft nicht-bewertbare Bilder aufgeben (Safety-Block, kaputtes JSON)
+                with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
+                    c.execute("UPDATE photos SET scored=TRUE, photo_score=0, comm_score=NULL WHERE id=%s", (pid,))
+                    c.commit()
+                print(f"[score] {pid} nach {n} Versuchen aufgegeben (scored=0)", flush=True)
+            continue
+        _score_fails.pop(pid, None)
         with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
             c.execute(
                 "UPDATE photos SET scored=TRUE, photo_score=%s, photo_desc=%s, comm_score=%s WHERE id=%s",

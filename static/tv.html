@@ -70,6 +70,7 @@
   #feat{position:fixed; inset:0; z-index:30; display:flex; opacity:0; transition:opacity .6s ease;
     background:linear-gradient(135deg,var(--green),var(--green2) 70%)}
   #feat.show{opacity:1}
+  #feat.hidden{display:none}
   #feat .feat-left{flex:0 0 42%; display:flex; flex-direction:column; justify-content:space-between;
     padding:clamp(28px,4vw,64px)}
   #feat .feat-brand{display:flex; flex-direction:column; align-items:flex-start}
@@ -195,7 +196,7 @@ const params = new URLSearchParams(location.search);
 
 let SLIDE = parseFloat(params.get('seconds')) || 4;
 let SPOTLIGHT = 6;
-const POLL_MS = 2500;
+const POLL_MS = 4000;
 const AD_EVERY = 10;     // alle 10 Fotos eine Werbung
 const AD_SECONDS = 6;    // Werbung 6 Sekunden einblenden
 
@@ -264,7 +265,7 @@ function dwellFor(comment, spotlight){
 async function show(id, spotlight){
   const inc = layers[(cur+1)%2], out = layers[cur];
   const fgUrl = `/photo/${id}`;          // VOLLES Bild — zuverlässig, kein Resize-Stau unter Last (kein Schwarz)
-  const bgUrl = `/photo/${id}?w=320`;    // winziger Blur-Hintergrund (best effort, lädt async)
+  const bgUrl = `/photo/${id}?w=400`;    // vorab erzeugter Blur-Hintergrund (lädt async)
   await decode(fgUrl);                    // nur das sichtbare Foto abwarten
   inc.fg.style.backgroundImage = `url("${fgUrl}")`;
   inc.bg.style.backgroundImage = `url("${bgUrl}")`;   // bg ohne decode-gate -> blockiert das Foto nie
@@ -273,7 +274,7 @@ async function show(id, spotlight){
   inc.root.style.zIndex = 2; out.root.style.zIndex = 1;
   inc.root.style.opacity = '1';
   cur = (cur+1)%2;
-  setTimeout(()=>{ out.root.style.opacity = '0'; }, 950);
+  setTimeout(()=>{ out.root.style.opacity = '0'; out.fg.style.animation = 'none'; }, 950);  // unsichtbare Ebene nicht weiter zoomen (GPU sparen)
 
   const comment = meta.get(id) || '';
   const cEl = $('#comment');
@@ -317,7 +318,7 @@ async function showPromoIn(ad){
   })));
   $('#feat').classList.remove('hidden'); void $('#feat').offsetWidth;
   $('#feat').classList.add('show');
-  await sleep(AD_SECONDS*1000);
+  for(let t=0; t<AD_SECONDS*1000 && !ceremony.active; t+=250){ await sleep(250); }  // bricht sofort ab, wenn Siegerehrung startet
 }
 async function hidePromo(){
   $('#feat').classList.remove('show');
@@ -351,6 +352,8 @@ function buildCerSlides(){
 
 function cerMode(m){ const c = $('#ceremony'); c.classList.remove('reveal','big'); if(m) c.classList.add(m); }
 
+async function cerSleep(ms){ for(let t=0; t<ms && ceremony.active; t+=200){ await sleep(200); } }  // bricht bei Phasenwechsel sofort ab
+
 async function ceremonyTick(){
   if(cerSlides.length && cerIdx >= cerSlides.length) cerFirstPass = false;  // ab 2. Durchlauf kein Countdown
   if(!cerSlides.length || cerIdx >= cerSlides.length){ cerSlides = buildCerSlides(); cerIdx = 0; }
@@ -362,7 +365,7 @@ async function ceremonyTick(){
     $('#cer-kicker').textContent = '🏆 Sieger-Show'; $('#cer-count').textContent = '';
     $('#cer-big').textContent = 'Sieger werden ermittelt …';
     $('#cer-sub').textContent = 'Sobald genug Fotos von der KI bewertet sind.';
-    await sleep(4000); return;
+    await cerSleep(4000); return;
   }
 
   if(sl.type === 'count'){
@@ -370,15 +373,15 @@ async function ceremonyTick(){
     $('#cer-kicker').textContent = '🏆 Gleich: ' + sl.kicker;
     $('#cer-big').textContent = ''; $('#cer-sub').textContent = '';
     const el = $('#cer-count');
-    for(let n = 5; n >= 1; n--){
+    for(let n = 5; n >= 1 && ceremony.active; n--){
       el.textContent = n; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = 'cpop .85s ease';
-      await sleep(1000);
+      await cerSleep(1000);
     }
     el.textContent = ''; return;
   }
 
   // 'reveal' | 'big' -> Foto IMMER sichtbar (auch bei der Gemeinsamkeit)
-  const fgU = sl.url, bgU = sl.url + '?w=320';   // volles Foto (zuverlässig) + winziger Blur-BG
+  const fgU = sl.url, bgU = sl.url + '?w=400';   // Anzeige-Foto + vorab erzeugter Blur-BG
   await decode(fgU);
   $('#cer-card').style.display = 'none'; $('#cer-photo').style.display = 'block';
   $('#cer-bg').style.backgroundImage = `url("${bgU}")`;
@@ -387,10 +390,10 @@ async function ceremonyTick(){
     cerMode('reveal');
     $('#cer-cap-kicker').textContent = '🏆 ' + sl.kicker;
     $('#cer-cap-text').textContent = sl.text || '';
-    await sleep(7000);
+    await cerSleep(7000);
   } else {
     cerMode('big');
-    await sleep(4000);
+    await cerSleep(4000);
   }
 }
 
@@ -426,13 +429,12 @@ async function loop(){
     preloadNext();   // nächste Bilder schon mal im Hintergrund holen
     await sleep(dwellFor(meta.get(pick.id)||'', pick.spotlight) * 1000);
     shownSinceAd++;
-    if(shownSinceAd >= AD_EVERY){
+    if(shownSinceAd >= AD_EVERY && !ceremony.active){
       shownSinceAd = 0;
       await showPromoIn(ADS[adIdx % ADS.length]); adIdx++;
-      // Nächstes Foto schon HINTER der Werbung aufbauen, dann Werbung ausblenden ->
-      // fließender Übergang, kein 1-Sekunden-Aufblitzen des alten Bildes.
-      const nx = pickNext();
-      if(nx) await show(nx.id, false);
+      // Nächstes Foto hinter der Werbung aufbauen + vorladen, dann Werbung ausblenden -> fließend.
+      const nx = ceremony.active ? null : pickNext();
+      if(nx){ await show(nx.id, false); preloadNext(); }
       await hidePromo();
       if(nx) await sleep(dwellFor(meta.get(nx.id)||'', false) * 1000);  // volle Standzeit
     }
@@ -483,7 +485,7 @@ async function pollCeremony(){
   await pollCeremony();
   loop();
   setInterval(poll, POLL_MS);
-  setInterval(pollCeremony, 2000);
+  setInterval(pollCeremony, 3000);
 })();
 
 document.body.addEventListener('click', ()=>{ const el=document.documentElement; if(el.requestFullscreen) el.requestFullscreen().catch(()=>{}); });

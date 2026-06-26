@@ -27,6 +27,7 @@ Endpoints
   POST /api/order               Reihenfolge setzen (Token, JSON {ids:[...]})
   GET  /healthz                 Healthcheck
 """
+import hmac
 import io
 import json
 import os
@@ -69,8 +70,11 @@ SLIDE_SECONDS = float(os.environ.get("SLIDE_SECONDS", "4"))
 FRONT_CAMERA = os.environ.get("FRONT_CAMERA", "1") not in ("0", "false", "False", "")
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 MAX_DIM = int(os.environ.get("MAX_DIM", "2200"))
+DISPLAY_DIM = int(os.environ.get("DISPLAY_DIM", "1600"))   # an den TV ausgeliefertes Foto (klein -> schneller Decode auf Fire TV)
+BG_DIM = int(os.environ.get("BG_DIM", "400"))              # winziger, vorab erzeugter Blur-Hintergrund
 JPEG_QUALITY = int(os.environ.get("JPEG_QUALITY", "85"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "40")) * 1024 * 1024
+Image.MAX_IMAGE_PIXELS = 30_000_000   # Decompression-Bomb-Schutz: PIL bricht hart bei >2x (~60 MP) ab
 MAX_COMMENT = 280
 APP_BOOT = str(int(time.time()))  # ändert sich bei jedem (Re)Deploy -> TV lädt automatisch neu
 
@@ -149,7 +153,20 @@ def init_db():
     _add_col("comm_score DOUBLE PRECISION", "comm_score REAL")
     _add_col("photo_score DOUBLE PRECISION", "photo_score REAL")
     _add_col("photo_desc TEXT", "photo_desc TEXT")
+    _add_col("data_bg BYTEA", "data_bg BLOB")   # vorab erzeugter Blur-Hintergrund (klein)
     _exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+
+
+def _resize_jpeg(raw: bytes, maxdim: int, quality: int) -> bytes:
+    """Bytes -> EXIF-korrektes, auf maxdim begrenztes JPEG. Einmalig erzeugt, dann gespeichert."""
+    im = Image.open(io.BytesIO(raw))
+    im = ImageOps.exif_transpose(im)
+    if im.mode != "RGB":
+        im = im.convert("RGB")
+    im.thumbnail((maxdim, maxdim), Image.Resampling.LANCZOS)
+    b = io.BytesIO()
+    im.save(b, "JPEG", quality=quality, optimize=True)
+    return b.getvalue()
 
 
 def setting_get(key: str, default: str = "") -> str:
@@ -168,16 +185,25 @@ def setting_set(key: str, value: str):
         _exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
 
 
-def db_insert(pid: str, data: bytes, comment: str, sort: float):
+def db_insert(pid: str, data: bytes, data_bg: bytes, comment: str, sort: float):
     _exec(
-        "INSERT INTO photos (id, data, comment, sort, created) VALUES (?, ?, ?, ?, ?)",
-        (pid, data, comment, sort, sort),
+        "INSERT INTO photos (id, data, data_bg, comment, sort, created) VALUES (?, ?, ?, ?, ?, ?)",
+        (pid, data, data_bg, comment, sort, sort),
     )
 
 
 def db_photo(pid: str):
     row = _exec(f"SELECT data FROM photos WHERE id=? AND hidden={_FALSE}", (pid,), "one")
     return bytes(row[0]) if row else None
+
+
+def db_photo_bg(pid: str):
+    row = _exec(f"SELECT data_bg FROM photos WHERE id=? AND hidden={_FALSE}", (pid,), "one")
+    return bytes(row[0]) if row and row[0] is not None else None
+
+
+def db_set_bg(pid: str, data_bg: bytes):
+    _exec("UPDATE photos SET data_bg=? WHERE id=?", (data_bg, pid))
 
 
 def db_exists(pid: str) -> bool:
@@ -230,7 +256,7 @@ def _clean_comment(text: str) -> str:
 
 
 def _require_admin(token: str) -> None:
-    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+    if not ADMIN_TOKEN or not hmac.compare_digest(str(token), ADMIN_TOKEN):
         raise HTTPException(status_code=401, detail="Nicht autorisiert")
 
 
@@ -277,36 +303,23 @@ def get_photos():
     }
 
 
-_RESIZE_CACHE: dict = {}  # (pid, w) -> jpeg bytes; entlastet den Fire-TV (kleinere Bilder)
-
 @app.get("/photo/{pid}")
 def get_photo(pid: str, w: int = 0):
     if not ID_RE.match(pid):
         raise HTTPException(status_code=404, detail="Not found")
     hdr = {"Cache-Control": "public, max-age=31536000, immutable"}
-    # Verkleinerte Variante (TV: scharfes fg ~1600px, Blur-Hintergrund ~320px) — gecacht.
-    if w and 48 <= w <= 2200:
-        ck = (pid, w)
-        out = _RESIZE_CACHE.get(ck)
-        if out is None:
-            data = db_photo(pid)
-            if data is None:
+    if w:  # winziger Blur-Hintergrund: vorab erzeugt; Altbestand einmalig nachziehen + speichern -> nie Resize-Stau
+        bg = db_photo_bg(pid)
+        if bg is None:
+            base = db_photo(pid)
+            if base is None:
                 raise HTTPException(status_code=404, detail="Not found")
             try:
-                im = Image.open(io.BytesIO(data))
-                im = ImageOps.exif_transpose(im)
-                if im.mode != "RGB":
-                    im = im.convert("RGB")
-                im.thumbnail((w, w), Image.Resampling.LANCZOS)
-                b = io.BytesIO()
-                im.save(b, "JPEG", quality=82, optimize=True)
-                out = b.getvalue()
+                bg = _resize_jpeg(base, BG_DIM, 72)
             except Exception:
-                out = data  # Fallback: Original
-            if len(_RESIZE_CACHE) > 600:
-                _RESIZE_CACHE.clear()
-            _RESIZE_CACHE[ck] = out
-        return Response(content=out, media_type="image/jpeg", headers=hdr)
+                bg = base   # Fallback: Anzeigebild als BG (sehr selten)
+            db_set_bg(pid, bg)   # immer speichern -> kein wiederholter Resize-Versuch pro Request
+        return Response(content=bg, media_type="image/jpeg", headers=hdr)
     data = db_photo(pid)
     if data is None:
         raise HTTPException(status_code=404, detail="Not found")
@@ -321,19 +334,16 @@ async def upload(file: UploadFile = File(...), comment: str = Form("")):
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei zu groß")
     try:
-        img = Image.open(io.BytesIO(raw))
-        img = ImageOps.exif_transpose(img)
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-        img.thumbnail((MAX_DIM, MAX_DIM), Image.Resampling.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, "JPEG", quality=JPEG_QUALITY, optimize=True)
+        data = _resize_jpeg(raw, DISPLAY_DIM, JPEG_QUALITY)   # Anzeige-/Backup-Foto (klein)
+        data_bg = _resize_jpeg(raw, BG_DIM, 72)               # Blur-Hintergrund (winzig)
+    except Image.DecompressionBombError:
+        raise HTTPException(status_code=413, detail="Bild zu groß (Pixelmenge)")
     except Exception:
         raise HTTPException(status_code=400, detail="Kein gültiges Bild")
 
     pid = _new_id()
     text = _clean_comment(comment)
-    db_insert(pid, buf.getvalue(), text, float(int(time.time() * 1000)))
+    db_insert(pid, data, data_bg, text, float(int(time.time() * 1000)))
     return {"id": pid, "url": f"/photo/{pid}", "comment": text}
 
 
@@ -425,59 +435,56 @@ def _end_competition():
     setting_set("winners_revealed", "0")  # Sieger erst NACH der Sieger-Show in der Diashow markieren
 
 
-@app.post("/api/ceremony/start")
-def ceremony_start(token: str = Query("")):
+# 4 manuelle Phasen (immer genau eine aktiv) — kein Zeitstempel/Deadline mehr:
+#   running  = Wettbewerb laeuft (Fotos zaehlen, Mitmach-Spiel sichtbar)
+#   waiting  = beendet, Siegerehrung folgt (Sieger eingefroren, noch nicht gezeigt)
+#   ceremony = Siegerehrung laeuft (Sieger-Show auf dem TV)
+#   done     = beendet, Sieger in der Diashow markiert (weiter hochladbar)
+def _set_phase(phase: str):
+    if phase == "running":
+        setting_set("comp_state", "live")
+        setting_set("ceremony_active", "0")
+        setting_set("winners_revealed", "0")
+        setting_set("winners_locked", "{}")
+        return
+    if setting_get("comp_state", "live") != "ended":
+        _end_competition()  # friert die aktuellen Sieger ein
+    if phase == "waiting":
+        setting_set("ceremony_active", "0")
+        setting_set("winners_revealed", "0")
+    elif phase == "ceremony":
+        setting_set("ceremony_active", "1")
+        setting_set("winners_revealed", "1")
+    elif phase == "done":
+        setting_set("ceremony_active", "0")
+        setting_set("winners_revealed", "1")
+
+
+def _current_phase() -> str:
+    if setting_get("comp_state", "live") != "ended":
+        return "running"
+    if setting_get("ceremony_active", "0") == "1":
+        return "ceremony"
+    if setting_get("winners_revealed", "0") == "1":
+        return "done"
+    return "waiting"
+
+
+@app.post("/api/ceremony/phase")
+def ceremony_phase(phase: str = Query(""), token: str = Query("")):
     _require_admin(token)
-    setting_set("ceremony_active", "1")
-    setting_set("winners_revealed", "1")  # Sieger gelten ab jetzt als gezeigt -> Badges in der Diashow
-    return {"ok": True, "winners": _current_winners()}
-
-
-@app.post("/api/ceremony/stop")
-def ceremony_stop(token: str = Query("")):
-    _require_admin(token)
-    setting_set("ceremony_active", "0")
-    return {"ok": True}
-
-
-@app.post("/api/ceremony/end")
-def ceremony_end(token: str = Query("")):
-    """Wettbewerb beenden: Sieger einfrieren (werden danach in der Diashow markiert)."""
-    _require_admin(token)
-    _end_competition()
-    return {"ok": True, "winners": _current_winners()}
-
-
-@app.post("/api/ceremony/reopen")
-def ceremony_reopen(token: str = Query("")):
-    _require_admin(token)
-    setting_set("comp_state", "live")
-    setting_set("winners_locked", "")
-    setting_set("winners_revealed", "0")
-    return {"ok": True}
-
-
-@app.post("/api/ceremony/deadline")
-def ceremony_deadline(end: str = Form(""), token: str = Query("")):
-    _require_admin(token)
-    setting_set("competition_end", end.strip())
-    return {"ok": True, "end": end.strip()}
+    if phase not in ("running", "waiting", "ceremony", "done"):
+        raise HTTPException(status_code=400, detail="Unbekannte Phase")
+    _set_phase(phase)
+    return {"ok": True, "phase": _current_phase(), "winners": _current_winners()}
 
 
 @app.get("/api/ceremony")
 def ceremony_get():
-    state = setting_get("comp_state", "live")
-    end = setting_get("competition_end", "")
-    # Deadline erreicht? -> Wettbewerb automatisch beenden + Sieger-Show starten.
-    if state == "live" and _deadline_passed(end):
-        _end_competition()
-        setting_set("ceremony_active", "1")
-        setting_set("winners_revealed", "1")  # Deadline startet Sieger-Show automatisch
-        state = "ended"
     return {
+        "phase": _current_phase(),
+        "state": setting_get("comp_state", "live"),
         "active": setting_get("ceremony_active", "0") == "1",
-        "state": state,
-        "end": end,
         "revealed": setting_get("winners_revealed", "0") == "1",
         "winners": _current_winners(),
     }
@@ -494,9 +501,10 @@ def admin_standings(token: str = Query("")):
         f"AND photo_score IS NOT NULL ORDER BY photo_score DESC, sort ASC LIMIT 8", (), "all") or []
     scored = (_exec(f"SELECT COUNT(*) FROM photos WHERE hidden={_FALSE} AND scored={_TRUE}", (), "one") or [0])[0]
     return {
+        "phase": _current_phase(),
         "state": setting_get("comp_state", "live"),
         "active": setting_get("ceremony_active", "0") == "1",
-        "end": setting_get("competition_end", ""),
+        "revealed": setting_get("winners_revealed", "0") == "1",
         "scored": int(scored), "total": db_count(),
         "commonalities": [{"id": r[0], "text": r[1], "url": f"/photo/{r[0]}", "score": r[2]} for r in comm],
         "photos": [{"id": r[0], "desc": r[1] or "", "url": f"/photo/{r[0]}", "score": r[2]} for r in phot],
