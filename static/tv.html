@@ -77,23 +77,35 @@
   #feat .feat-qr{display:flex; align-items:center; gap:16px}
   #feat .feat-qr img{width:clamp(96px,9vw,150px); height:clamp(96px,9vw,150px); background:#fff; padding:8px; border-radius:14px}
   #feat .feat-qr div{font-size:clamp(14px,1.4vw,20px); font-weight:700; line-height:1.3}
-  #feat .feat-right{flex:1; background:#f6efe2; display:flex; align-items:center; justify-content:center; gap:16px; padding:clamp(20px,3vw,56px)}
-  #feat .feat-right img{max-height:100%; object-fit:contain; border-radius:10px}
-  #feat .feat-right img.one{max-width:100%}
-  #feat .feat-right img.two{max-width:48%}
+  #feat .feat-right{flex:1; background:#f6efe2; display:flex; align-items:center; justify-content:center; gap:clamp(18px,3vw,48px); padding:clamp(20px,3vw,56px)}
+  #feat .feat-fig{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:clamp(8px,1.4vh,16px); margin:0; min-width:0}
+  #feat .feat-fig.one{max-width:100%}
+  #feat .feat-fig.two{max-width:48%}
+  #feat .feat-fig img{max-width:100%; object-fit:contain; border-radius:10px; display:block}
+  #feat .feat-fig.one img{max-height:78vh}
+  #feat .feat-fig.two img{max-height:64vh}
+  #feat .feat-fig figcaption{color:#0a0d14; font-weight:800; font-size:clamp(13px,1.5vw,21px); text-align:center; line-height:1.2}
   #feat .feat-tag{position:absolute; top:22px; right:28px; font-size:clamp(11px,1.1vw,15px); font-weight:700;
     opacity:.7; background:rgba(0,0,0,.25); padding:6px 14px; border-radius:999px}
 
   #ceremony{position:fixed; inset:0; z-index:40; background:linear-gradient(135deg,var(--green),var(--green2) 75%)}
   #ceremony.hidden{display:none}
-  #ceremony .cer-card{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:6vw; gap:22px}
+  #ceremony .cer-card{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:6vw; gap:20px}
   #cer-kicker{color:var(--accent); font-weight:800; letter-spacing:.16em; text-transform:uppercase; font-size:clamp(18px,2.4vw,34px)}
+  #cer-count{font-size:clamp(140px,28vw,440px); font-weight:900; line-height:.9; color:#fff; text-shadow:0 10px 60px rgba(0,0,0,.4)}
+  #cer-count:empty{display:none}
   #cer-big{font-size:clamp(34px,5.5vw,88px); font-weight:900; line-height:1.06; max-width:18em}
+  #cer-big:empty{display:none}
   #cer-sub{font-size:clamp(16px,2vw,28px); opacity:.85; max-width:24em}
   #ceremony .cer-photo{position:absolute; inset:0; display:none}
   #cer-bg{position:absolute; inset:0; background-size:cover; background-position:center; filter:blur(28px) brightness(.4); transform:scale(1.1)}
-  #cer-fg{position:absolute; inset:0; background-size:contain; background-position:center; background-repeat:no-repeat}
-  #cer-cap{position:absolute; left:0; right:0; bottom:7vh; text-align:center; font-size:clamp(22px,3vw,46px); font-weight:800; text-shadow:0 2px 20px rgba(0,0,0,.9); padding:0 8vw}
+  #cer-fg{position:absolute; inset:0; background-size:contain; background-position:center; background-repeat:no-repeat; transition:inset .5s ease}
+  #ceremony.reveal #cer-fg{inset:0 0 27% 0}
+  #cer-caption{position:absolute; left:0; right:0; bottom:0; height:27%; display:none; flex-direction:column; align-items:center; justify-content:center; gap:clamp(8px,1.4vh,18px); text-align:center; padding:0 6vw 5vh; background:linear-gradient(0deg, rgba(10,13,20,.95), rgba(10,13,20,.55) 62%, transparent)}
+  #ceremony.reveal #cer-caption{display:flex}
+  #cer-cap-kicker{color:var(--accent); font-weight:800; letter-spacing:.14em; text-transform:uppercase; font-size:clamp(14px,1.8vw,26px)}
+  #cer-cap-text{font-weight:800; font-size:clamp(22px,3vw,48px); line-height:1.15; max-width:92vw}
+  @keyframes cpop{0%{transform:scale(.5);opacity:0}45%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
 
   #empty{position:fixed; inset:0; z-index:25; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px; text-align:center; padding:40px; background:#0a0d14}
   #empty.hidden{display:none}
@@ -145,15 +157,19 @@
   </div>
 
   <div id="ceremony" class="hidden">
-    <div class="cer-card" id="cer-card">
-      <div class="cer-kicker" id="cer-kicker"></div>
-      <div class="cer-big" id="cer-big"></div>
-      <div class="cer-sub" id="cer-sub"></div>
-    </div>
     <div class="cer-photo" id="cer-photo">
       <div class="cer-bg" id="cer-bg"></div>
       <div class="cer-fg" id="cer-fg"></div>
-      <div class="cer-cap" id="cer-cap"></div>
+    </div>
+    <div class="cer-caption" id="cer-caption">
+      <div class="cer-cap-kicker" id="cer-cap-kicker"></div>
+      <div class="cer-cap-text" id="cer-cap-text"></div>
+    </div>
+    <div class="cer-card" id="cer-card">
+      <div class="cer-kicker" id="cer-kicker"></div>
+      <div class="cer-count" id="cer-count"></div>
+      <div class="cer-big" id="cer-big"></div>
+      <div class="cer-sub" id="cer-sub"></div>
     </div>
   </div>
 
@@ -172,17 +188,19 @@ let SLIDE = parseFloat(params.get('seconds')) || 4;
 let SPOTLIGHT = 6;
 const POLL_MS = 2500;
 const AD_EVERY = 10;     // alle 10 Fotos eine Werbung
-const AD_SECONDS = 9;
+const AD_SECONDS = 6;    // Werbung 6 Sekunden einblenden
 
-// COURT7-Produkte für die Werbung (Bilder liegen lokal in /static/ad)
+// COURT7-Produkte für die Werbung (Bilder liegen lokal in /static/gear).
+// WICHTIG: AD-IN = "Serve & Chill"-Serie = Crossover (Platz + Alltag) -> KEINE
+// "on court"/"Court-Look"-Copy. Performance-Linie (blau/rot) = Court-OK.
 const ADS = [
-  { line:'Backprint. Bold. Grün.',        title:'AD-IN Tee Green · COURT7-Backprint', price:'45 €',   url:'https://court7.eu/products/ad-in-200-basic-tee-green',          imgs:['/static/gear/prod-green-tee.jpg'] },
-  { line:'Der grüne Court-Look.',         title:'Tee + Shorts · Green Match',         price:'ab 45 €', url:'https://court7.eu/collections/all',                            imgs:['/static/gear/prod-green-tee.jpg','/static/gear/prod-shorts-green.jpg'] },
-  { line:'Cool durchgespielt — in Blau.', title:'Performance Tee + Shorts · Blue',    price:'ab 45 €', url:'https://court7.eu/collections/all',                            imgs:['/static/gear/prod-blue-tee.jpg','/static/gear/prod-shorts-blue.jpg'] },
-  { line:'1 Liter Style für die Bank.',   title:'COURT7 Sportflasche · 1 L',          price:'20 €',   url:'https://court7.eu/products/court-7-sportflasche',               imgs:['/static/gear/prod-bottle.jpg'] },
-  { line:'Spiel, Satz, Style.',           title:'Performance Tee Raglan Red',         price:'45 €',   url:'https://court7.eu/products/performance-raglan-contrast-tee-red', imgs:['/static/gear/prod-red-raglan.jpg'] },
-  { line:'Cap auf, Sonne raus.',          title:'Court Cap',                          price:'25 €',   url:'https://court7.eu/products/court-cap',                          imgs:['/static/gear/prod-cap.jpg'] },
-  { line:'Gehört auf jeden Court.',       title:'COURT7 Tennissocken · 2er-Pack',     price:'11 €',   url:'https://court7.eu/products/sock',                               imgs:['/static/gear/prod-socks.jpg'] },
+  { line:'Serve & Chill in Grün.',         title:'AD-IN Tee Green 200',                  price:'45 €',    url:'https://court7.eu/products/ad-in-200-basic-tee-green',           imgs:['/static/gear/prod-green-tee.jpg'],                                      names:['AD-IN Tee Green 200'] },
+  { line:'Grün – drinnen wie draußen.',     title:'AD-IN Tee + Dual Pocket Shorts',       price:'je 45 €', url:'https://court7.eu/collections/all',                             imgs:['/static/gear/prod-green-tee.jpg','/static/gear/prod-shorts-green.jpg'], names:['AD-IN Tee Green','Dual Pocket Shorts Green'] },
+  { line:'Blau. Cool durchgespielt.',       title:'Performance Tee + Dual Pocket Shorts', price:'je 45 €', url:'https://court7.eu/collections/all',                             imgs:['/static/gear/prod-blue-tee.jpg','/static/gear/prod-shorts-blue.jpg'],   names:['Performance Tee Blue','Dual Pocket Shorts Blue'] },
+  { line:'1 Liter. Immer dabei.',           title:'COURT7 Sportflasche · 1 L',            price:'20 €',    url:'https://court7.eu/products/court-7-sportflasche',                imgs:['/static/gear/prod-bottle.jpg'],                                         names:['COURT7 Sportflasche · 1 L'] },
+  { line:'Raglan-Cut in Rot.',              title:'Performance Tee Raglan · Red',         price:'45 €',    url:'https://court7.eu/products/performance-raglan-contrast-tee-red', imgs:['/static/gear/prod-red-raglan.jpg'],                                     names:['Performance Tee Raglan Red'] },
+  { line:'Cap auf, Sonne raus.',            title:'Court Cap',                            price:'25 €',    url:'https://court7.eu/products/court-cap',                           imgs:['/static/gear/prod-cap.jpg'],                                            names:['Court Cap'] },
+  { line:'Dezentes Logo, volle Dämpfung.',  title:'COURT7 Tennissocke · 2 Pack',          price:'11 €',    url:'https://court7.eu/products/sock',                                imgs:['/static/gear/prod-socks.jpg'],                                          names:['COURT7 Tennissocke (2 Pack)'] },
 ];
 
 let order = [];               // IDs in Anzeige-Reihenfolge (vom Server)
@@ -263,7 +281,9 @@ async function show(id, spotlight){
   if(spotlight){ const b=$('#newbadge'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
 }
 
-async function showAd(ad){
+// Werbung einblenden + AD_SECONDS halten (KEIN Ausblenden -> hidePromo() macht das,
+// erst nachdem das nächste Foto dahinter aufgebaut ist -> fließender Übergang).
+async function showPromoIn(ad){
   $('#comment').classList.remove('show');
   $('#feat-line').textContent = ad.line;
   $('#feat-title').textContent = ad.title;
@@ -271,7 +291,14 @@ async function showAd(ad){
   $('#feat-qr').src = '/api/qr.png?data=' + encodeURIComponent(ad.url);
   const wrap = $('#feat-imgs'); wrap.innerHTML = '';
   const cls = ad.imgs.length > 1 ? 'two' : 'one';
-  const els = ad.imgs.map(src => { const im = document.createElement('img'); im.className = cls; im.src = src; wrap.appendChild(im); return im; });
+  // Pro Bild eine Figur mit Produktname darunter.
+  const els = ad.imgs.map((src,i) => {
+    const fig = document.createElement('figure'); fig.className = 'feat-fig ' + cls;
+    const im = document.createElement('img'); im.src = src; fig.appendChild(im);
+    const nm = (ad.names && ad.names[i]) || '';
+    if(nm){ const cap = document.createElement('figcaption'); cap.textContent = nm; fig.appendChild(cap); }
+    wrap.appendChild(fig); return im;
+  });
   // Die TATSÄCHLICH angezeigten <img> dekodieren, bevor eingeblendet wird (kein leeres Panel).
   await Promise.all(els.map(im => (im.complete && im.naturalWidth) ? Promise.resolve() : new Promise(res => {
     if(im.decode){ im.decode().then(res).catch(res); } else { im.onload = res; im.onerror = res; }
@@ -280,6 +307,8 @@ async function showAd(ad){
   $('#feat').classList.remove('hidden'); void $('#feat').offsetWidth;
   $('#feat').classList.add('show');
   await sleep(AD_SECONDS*1000);
+}
+async function hidePromo(){
   $('#feat').classList.remove('show');
   await sleep(650);
   $('#feat').classList.add('hidden');
@@ -293,52 +322,88 @@ function setEmpty(isEmpty){
 
 function buildCerSlides(){
   const w = ceremony.winners || {}; const s = [];
-  if(w.commonality){
-    s.push({type:'title', kicker:'🏆 Originellste Gemeinsamkeit', big:'„'+w.commonality.text+'"', sub:'gefunden auf der COURT7 Foto-Wall'});
-    s.push({type:'photo', url:w.commonality.url, cap:'„'+w.commonality.text+'"'});
-  }
-  if(w.photo){
-    s.push({type:'title', kicker:'📸 Originellstes Foto des Abends', big:'🏆', sub:w.photo.desc||''});
-    s.push({type:'photo', url:w.photo.url, cap:w.photo.desc||''});
-  }
-  if(!s.length) s.push({type:'title', kicker:'🏆 Sieger-Show', big:'Sieger werden ermittelt …', sub:'Sobald genug Fotos von der KI bewertet sind.'});
+  // Pro Sieger: 5s-Countdown (mit Hinweis) -> Foto sichtbar + Text darunter -> Foto nochmal groß.
+  const add = (kicker, url, text) => {
+    s.push({type:'count',  kicker});
+    s.push({type:'reveal', kicker, url, text});
+    s.push({type:'big',    url});
+  };
+  if(w.commonality) add('Originellste Gemeinsamkeit', w.commonality.url, '„'+w.commonality.text+'"');
+  if(w.photo)       add('Originellstes Foto des Abends', w.photo.url, w.photo.desc||'');
+  if(!s.length) s.push({type:'wait'});
   return s;
 }
+
+function cerMode(m){ const c = $('#ceremony'); c.classList.remove('reveal','big'); if(m) c.classList.add(m); }
 
 async function ceremonyTick(){
   if(!cerSlides.length || cerIdx >= cerSlides.length){ cerSlides = buildCerSlides(); cerIdx = 0; }
   const sl = cerSlides[cerIdx++];
   $('#ceremony').classList.remove('hidden');
-  if(sl.type === 'title'){
-    $('#cer-card').style.display = 'flex'; $('#cer-photo').style.display = 'none';
-    $('#cer-kicker').textContent = sl.kicker; $('#cer-big').textContent = sl.big; $('#cer-sub').textContent = sl.sub;
-  } else {
-    await decode(sl.url);
-    $('#cer-card').style.display = 'none'; $('#cer-photo').style.display = 'block';
-    $('#cer-bg').style.backgroundImage = `url("${sl.url}")`;
-    $('#cer-fg').style.backgroundImage = `url("${sl.url}")`;
-    $('#cer-cap').textContent = sl.cap || '';
+
+  if(sl.type === 'wait'){
+    cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'flex';
+    $('#cer-kicker').textContent = '🏆 Sieger-Show'; $('#cer-count').textContent = '';
+    $('#cer-big').textContent = 'Sieger werden ermittelt …';
+    $('#cer-sub').textContent = 'Sobald genug Fotos von der KI bewertet sind.';
+    await sleep(4000); return;
   }
-  await sleep(10000);
+
+  if(sl.type === 'count'){
+    cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'flex';
+    $('#cer-kicker').textContent = '🏆 Gleich: ' + sl.kicker;
+    $('#cer-big').textContent = ''; $('#cer-sub').textContent = '';
+    const el = $('#cer-count');
+    for(let n = 5; n >= 1; n--){
+      el.textContent = n; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = 'cpop .85s ease';
+      await sleep(1000);
+    }
+    el.textContent = ''; return;
+  }
+
+  // 'reveal' | 'big' -> Foto IMMER sichtbar (auch bei der Gemeinsamkeit)
+  await decode(sl.url);
+  $('#cer-card').style.display = 'none'; $('#cer-photo').style.display = 'block';
+  $('#cer-bg').style.backgroundImage = `url("${sl.url}")`;
+  $('#cer-fg').style.backgroundImage = `url("${sl.url}")`;
+  if(sl.type === 'reveal'){
+    cerMode('reveal');
+    $('#cer-cap-kicker').textContent = '🏆 ' + sl.kicker;
+    $('#cer-cap-text').textContent = sl.text || '';
+    await sleep(7000);
+  } else {
+    cerMode('big');
+    await sleep(4000);
+  }
 }
 
-function ceremonyHide(){ $('#ceremony').classList.add('hidden'); cerSlides = []; cerIdx = 0; }
+function ceremonyHide(){ $('#ceremony').classList.add('hidden'); cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'none'; cerSlides = []; cerIdx = 0; }
+
+function pickNext(){
+  if(queue.length) return { id: queue.shift(), spotlight:true };
+  if(order.length){ idx = (idx+1) % order.length; return { id: order[idx], spotlight:false }; }
+  return null;
+}
 
 async function loop(){
   while(true){
     if(ceremony.active){ await ceremonyTick(); continue; }
     if(!$('#ceremony').classList.contains('hidden')) ceremonyHide();
-    let id, spotlight=false;
-    if(queue.length){ id = queue.shift(); spotlight = true; }
-    else if(order.length){ idx = (idx+1) % order.length; id = order[idx]; }
-    else { setEmpty(true); await sleep(800); continue; }
+    const pick = pickNext();
+    if(!pick){ setEmpty(true); await sleep(800); continue; }
     setEmpty(false);
-    await show(id, spotlight);
-    await sleep(dwellFor(meta.get(id)||'', spotlight) * 1000);
+    await show(pick.id, pick.spotlight);
+    await sleep(dwellFor(meta.get(pick.id)||'', pick.spotlight) * 1000);
     shownSinceAd++;
     if(shownSinceAd >= AD_EVERY){
       shownSinceAd = 0;
-      await showAd(ADS[adIdx % ADS.length]); adIdx++;
+      await showPromoIn(ADS[adIdx % ADS.length]); adIdx++;
+      // Nächstes Foto schon HINTER der Werbung aufbauen, dann Werbung ausblenden ->
+      // fließender Übergang, kein 1-Sekunden-Aufblitzen des alten Bildes.
+      const nx = pickNext();
+      if(nx) await show(nx.id, false);
+      await hidePromo();
+      if(nx) await sleep(dwellFor(meta.get(nx.id)||'', false) * 1000);  // volle Standzeit
     }
   }
 }
