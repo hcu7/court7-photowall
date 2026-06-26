@@ -269,7 +269,7 @@ async function show(id, spotlight){
   inc.fg.style.backgroundImage = `url("${fgUrl}")`;
   inc.bg.style.backgroundImage = `url("${bgUrl}")`;   // bg ohne decode-gate -> blockiert das Foto nie
   inc.fg.style.animation = 'none'; void inc.fg.offsetWidth;
-  inc.fg.style.animation = `kb ${(spotlight?SPOTLIGHT:SLIDE)+1.5}s ease-out forwards`;
+  inc.fg.style.animation = 'kb 9s ease-in-out infinite alternate';   // Dauer-Zoom -> ständige Bewegung, hält den TV wach
   inc.root.style.zIndex = 2; out.root.style.zIndex = 1;
   inc.root.style.opacity = '1';
   cur = (cur+1)%2;
@@ -396,6 +396,19 @@ async function ceremonyTick(){
 
 function ceremonyHide(){ $('#ceremony').classList.add('hidden'); cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'none'; cerSlides = []; cerIdx = 0; }
 
+// Vorladen: nächste Bilder im Hintergrund dekodieren -> Übergänge sind instant, Diashow stockt nicht.
+const _preCache = new Map();   // id -> Image (hält den Browser-Cache warm)
+function preload(id){
+  if(!id || _preCache.has(id)) return;
+  const im = new Image(); im.src = `/photo/${id}`;
+  _preCache.set(id, im);
+  if(_preCache.size > 14){ const k = _preCache.keys().next().value; _preCache.delete(k); }
+}
+function preloadNext(){
+  if(queue.length) preload(queue[0]);
+  if(order.length){ preload(order[(idx+1) % order.length]); preload(order[(idx+2) % order.length]); }
+}
+
 function pickNext(){
   if(queue.length) return { id: queue.shift(), spotlight:true };
   if(order.length){ idx = (idx+1) % order.length; return { id: order[idx], spotlight:false }; }
@@ -410,6 +423,7 @@ async function loop(){
     if(!pick){ setEmpty(true); await sleep(800); continue; }
     setEmpty(false);
     await show(pick.id, pick.spotlight);
+    preloadNext();   // nächste Bilder schon mal im Hintergrund holen
     await sleep(dwellFor(meta.get(pick.id)||'', pick.spotlight) * 1000);
     shownSinceAd++;
     if(shownSinceAd >= AD_EVERY){
@@ -443,6 +457,7 @@ async function poll(){
     for(const p of photos){                                            // neue -> Spotlight
       if(!known.has(p.id)){
         known.add(p.id);
+        preload(p.id);                       // frischen Upload sofort vorladen
         if(initialized) queue.push(p.id);
       }
     }
