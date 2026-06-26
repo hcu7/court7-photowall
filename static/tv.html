@@ -78,6 +78,17 @@
   #ad .ad-tag{position:absolute; top:22px; right:28px; font-size:clamp(11px,1.1vw,15px); font-weight:700;
     opacity:.7; background:rgba(0,0,0,.25); padding:6px 14px; border-radius:999px}
 
+  #ceremony{position:fixed; inset:0; z-index:40; background:linear-gradient(135deg,var(--green),var(--green2) 75%)}
+  #ceremony.hidden{display:none}
+  #ceremony .cer-card{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:6vw; gap:22px}
+  #cer-kicker{color:var(--accent); font-weight:800; letter-spacing:.16em; text-transform:uppercase; font-size:clamp(18px,2.4vw,34px)}
+  #cer-big{font-size:clamp(34px,5.5vw,88px); font-weight:900; line-height:1.06; max-width:18em}
+  #cer-sub{font-size:clamp(16px,2vw,28px); opacity:.85; max-width:24em}
+  #ceremony .cer-photo{position:absolute; inset:0; display:none}
+  #cer-bg{position:absolute; inset:0; background-size:cover; background-position:center; filter:blur(28px) brightness(.4); transform:scale(1.1)}
+  #cer-fg{position:absolute; inset:0; background-size:contain; background-position:center; background-repeat:no-repeat}
+  #cer-cap{position:absolute; left:0; right:0; bottom:7vh; text-align:center; font-size:clamp(22px,3vw,46px); font-weight:800; text-shadow:0 2px 20px rgba(0,0,0,.9); padding:0 8vw}
+
   #empty{position:fixed; inset:0; z-index:25; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px; text-align:center; padding:40px; background:#0a0d14}
   #empty.hidden{display:none}
   #empty .e-title{font-size:clamp(26px,4vw,56px); font-weight:800}
@@ -126,6 +137,19 @@
     <div class="ad-tag">Werbung · gleich geht's weiter</div>
   </div>
 
+  <div id="ceremony" class="hidden">
+    <div class="cer-card" id="cer-card">
+      <div class="cer-kicker" id="cer-kicker"></div>
+      <div class="cer-big" id="cer-big"></div>
+      <div class="cer-sub" id="cer-sub"></div>
+    </div>
+    <div class="cer-photo" id="cer-photo">
+      <div class="cer-bg" id="cer-bg"></div>
+      <div class="cer-fg" id="cer-fg"></div>
+      <div class="cer-cap" id="cer-cap"></div>
+    </div>
+  </div>
+
   <div id="empty">
     <div class="e-title" id="empty-title">…</div>
     <div class="e-sub">Scan den QR-Code, mach ein Selfie mit deiner Person — und schau hier zu! 📸</div>
@@ -161,6 +185,8 @@ let queue = [];                // frische IDs -> Spotlight
 let idx = -1;
 let initialized = false;
 let shownSinceAd = 0, adIdx = 0;
+let ceremony = { active:false, winners:{} };   // Sieger-Show
+let cerSlides = [], cerIdx = 0;
 
 const layers = [
   { root:$('#layerA'), bg:$('#layerA .bg'), fg:$('#layerA .fg') },
@@ -245,8 +271,43 @@ function setEmpty(isEmpty){
   $('#brand-tr').style.display = isEmpty ? 'none' : 'block';
 }
 
+function buildCerSlides(){
+  const w = ceremony.winners || {}; const s = [];
+  if(w.commonality){
+    s.push({type:'title', kicker:'🏆 Originellste Gemeinsamkeit', big:'„'+w.commonality.text+'"', sub:'gefunden auf der COURT7 Foto-Wall'});
+    s.push({type:'photo', url:w.commonality.url, cap:'„'+w.commonality.text+'"'});
+  }
+  if(w.photo){
+    s.push({type:'title', kicker:'📸 Originellstes Foto des Abends', big:'🏆', sub:w.photo.desc||''});
+    s.push({type:'photo', url:w.photo.url, cap:w.photo.desc||''});
+  }
+  if(!s.length) s.push({type:'title', kicker:'🏆 Sieger-Show', big:'Sieger werden ermittelt …', sub:'Sobald genug Fotos von der KI bewertet sind.'});
+  return s;
+}
+
+async function ceremonyTick(){
+  if(!cerSlides.length || cerIdx >= cerSlides.length){ cerSlides = buildCerSlides(); cerIdx = 0; }
+  const sl = cerSlides[cerIdx++];
+  $('#ceremony').classList.remove('hidden');
+  if(sl.type === 'title'){
+    $('#cer-card').style.display = 'flex'; $('#cer-photo').style.display = 'none';
+    $('#cer-kicker').textContent = sl.kicker; $('#cer-big').textContent = sl.big; $('#cer-sub').textContent = sl.sub;
+  } else {
+    await decode(sl.url);
+    $('#cer-card').style.display = 'none'; $('#cer-photo').style.display = 'block';
+    $('#cer-bg').style.backgroundImage = `url("${sl.url}")`;
+    $('#cer-fg').style.backgroundImage = `url("${sl.url}")`;
+    $('#cer-cap').textContent = sl.cap || '';
+  }
+  await sleep(10000);
+}
+
+function ceremonyHide(){ $('#ceremony').classList.add('hidden'); cerSlides = []; cerIdx = 0; }
+
 async function loop(){
   while(true){
+    if(ceremony.active){ await ceremonyTick(); continue; }
+    if(!$('#ceremony').classList.contains('hidden')) ceremonyHide();
     let id, spotlight=false;
     if(queue.length){ id = queue.shift(); spotlight = true; }
     else if(order.length){ idx = (idx+1) % order.length; id = order[idx]; }
@@ -286,10 +347,16 @@ async function poll(){
   }catch(e){ /* Netz weg -> weiterlaufen */ }
 }
 
+async function pollCeremony(){
+  try{ ceremony = await (await fetch('/api/ceremony')).json(); }catch(e){}
+}
+
 (async function start(){
   await poll();
+  await pollCeremony();
   loop();
   setInterval(poll, POLL_MS);
+  setInterval(pollCeremony, 2000);
 })();
 
 document.body.addEventListener('click', ()=>{ const el=document.documentElement; if(el.requestFullscreen) el.requestFullscreen().catch(()=>{}); });

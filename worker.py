@@ -11,14 +11,19 @@ ENV:
   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REFRESH_TOKEN   OAuth
   BACKUP_INTERVAL     Sekunden zwischen den Durchläufen (default 90)
 """
+import base64
 import io
+import json
 import os
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import psycopg
+import requests
 from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
+from google.auth.transport.requests import Request as GAuthRequest
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -26,6 +31,68 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 FOLDER = os.environ["DRIVE_FOLDER_ID"]
 INTERVAL = int(os.environ.get("BACKUP_INTERVAL", "90"))
 BATCH = int(os.environ.get("BACKUP_BATCH", "25"))
+
+# --- KI-Bewertung (Vertex Gemini, EU) ---
+VERTEX_SA_JSON = os.environ.get("VERTEX_SA_JSON", "")
+VERTEX_PROJECT = os.environ.get("VERTEX_PROJECT_ID", "")
+VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "europe-west3")
+VERTEX_MODEL = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash")
+SCORE_BATCH = int(os.environ.get("SCORE_BATCH", "15"))
+SCORING_ON = bool(VERTEX_SA_JSON and VERTEX_PROJECT)
+
+_SCORE_PROMPT = (
+    "Du bist Juror einer Party-Foto-Wand. Bewerte STRENG und konsistent. "
+    "Antworte NUR mit JSON: "
+    '{"photo_score": <0-100 ganzzahlig>, '
+    '"photo_desc": "<charmante deutsche Kurzbeschreibung des Fotos, max 12 Woerter>", '
+    '"comm_score": <0-100 ganzzahlig oder null>}. '
+    "photo_score = wie originell/witzig/besonders das FOTO ist "
+    "(0815-Schnappschuss ~40, kreativ/lustig/ueberraschend ~80+). "
+    "comm_score = wie originell die angegebene GEMEINSAMKEIT ist "
+    "(banal wie 'beide moegen Pizza' ~30, spezifisch/ueberraschend ~80+); "
+    "null wenn keine Gemeinsamkeit angegeben. "
+    "Angegebene Gemeinsamkeit: {COMMENT}"
+)
+
+_sa_creds = None
+
+
+def _vertex_token() -> str:
+    global _sa_creds
+    if _sa_creds is None:
+        _sa_creds = service_account.Credentials.from_service_account_info(
+            json.loads(VERTEX_SA_JSON), scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+    if not _sa_creds.valid:
+        _sa_creds.refresh(GAuthRequest())
+    return _sa_creds.token
+
+
+def score_photo(jpg: bytes, comment: str):
+    """Returns (photo_score, photo_desc, comm_score or None)."""
+    body = {
+        "contents": [{"role": "user", "parts": [
+            {"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(jpg).decode()}},
+            {"text": _SCORE_PROMPT.replace("{COMMENT}", comment or "(keine)")},
+        ]}],
+        "generationConfig": {"temperature": 0, "responseMimeType": "application/json", "maxOutputTokens": 400},
+    }
+    url = (
+        f"https://{VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/{VERTEX_PROJECT}"
+        f"/locations/{VERTEX_LOCATION}/publishers/google/models/{VERTEX_MODEL}:generateContent"
+    )
+    r = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {_vertex_token()}", "Content-Type": "application/json"},
+        json=body, timeout=60,
+    )
+    r.raise_for_status()
+    txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+    d = json.loads(txt)
+    ps = float(d.get("photo_score") or 0)
+    cs = d.get("comm_score")
+    cs = float(cs) if cs is not None else None
+    return ps, (d.get("photo_desc") or "")[:200], cs
 
 
 def _creds():
@@ -45,10 +112,42 @@ def _drive():
 
 def ensure_schema():
     with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
-        c.execute(
-            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS backed_up BOOLEAN NOT NULL DEFAULT FALSE"
-        )
+        for ddl in (
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS backed_up BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS scored BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS comm_score DOUBLE PRECISION",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_score DOUBLE PRECISION",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_desc TEXT",
+        ):
+            c.execute(ddl)
         c.commit()
+
+
+def run_scoring() -> int:
+    if not SCORING_ON:
+        return 0
+    with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
+        rows = c.execute(
+            "SELECT id, data, comment FROM photos WHERE scored=FALSE AND hidden=FALSE "
+            "ORDER BY created ASC LIMIT %s",
+            (SCORE_BATCH,),
+        ).fetchall()
+    done = 0
+    for pid, data, comment in rows:
+        try:
+            ps, desc, cs = score_photo(bytes(data), comment)
+        except Exception as e:
+            print(f"[score] error {pid}: {e}", flush=True)
+            continue  # spaeter erneut versuchen
+        with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
+            c.execute(
+                "UPDATE photos SET scored=TRUE, photo_score=%s, photo_desc=%s, comm_score=%s WHERE id=%s",
+                (ps, desc, cs, pid),
+            )
+            c.commit()
+        done += 1
+        print(f"[score] {pid} photo={ps} comm={cs}", flush=True)
+    return done
 
 
 def run_once(svc) -> int:
@@ -96,15 +195,24 @@ def main():
         except Exception as e:
             print(f"[backup] schema wait: {e}", flush=True)
             time.sleep(5)
-    print(f"[backup] gestartet · interval={INTERVAL}s · folder={FOLDER}", flush=True)
+    print(
+        f"[backup] gestartet · interval={INTERVAL}s · folder={FOLDER} · "
+        f"scoring={'an ('+VERTEX_MODEL+'/'+VERTEX_LOCATION+')' if SCORING_ON else 'aus'}",
+        flush=True,
+    )
     while True:
         try:
-            svc = _drive()
-            n = run_once(svc)
+            n = run_once(_drive())
             if n:
                 print(f"[backup] {n} Foto(s) gesichert", flush=True)
         except Exception as e:
             print(f"[backup] error: {e}", flush=True)
+        try:
+            s = run_scoring()
+            if s:
+                print(f"[score] {s} Foto(s) bewertet", flush=True)
+        except Exception as e:
+            print(f"[score] loop error: {e}", flush=True)
         time.sleep(INTERVAL)
 
 

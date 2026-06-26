@@ -28,6 +28,7 @@ Endpoints
   GET  /healthz                 Healthcheck
 """
 import io
+import json
 import os
 import re
 import time
@@ -122,16 +123,41 @@ def _exec(sql: str, params=(), fetch=None):
         conn.close()
 
 
-def init_db():
-    _exec(_DDL)
-    # Backup-Flag (vom getrennten Backup-Worker genutzt) — idempotent nachziehen.
+def _add_col(pg_def: str, sqlite_def: str):
     if PG:
-        _exec("ALTER TABLE photos ADD COLUMN IF NOT EXISTS backed_up BOOLEAN NOT NULL DEFAULT FALSE")
+        _exec(f"ALTER TABLE photos ADD COLUMN IF NOT EXISTS {pg_def}")
     else:
         try:
-            _exec("ALTER TABLE photos ADD COLUMN backed_up INTEGER NOT NULL DEFAULT 0")
+            _exec(f"ALTER TABLE photos ADD COLUMN {sqlite_def}")
         except Exception:
             pass
+
+
+def init_db():
+    _exec(_DDL)
+    # Zusatz-Spalten idempotent nachziehen (Backup-Worker + KI-Bewertung).
+    _add_col("backed_up BOOLEAN NOT NULL DEFAULT FALSE", "backed_up INTEGER NOT NULL DEFAULT 0")
+    _add_col("scored BOOLEAN NOT NULL DEFAULT FALSE", "scored INTEGER NOT NULL DEFAULT 0")
+    _add_col("comm_score DOUBLE PRECISION", "comm_score REAL")
+    _add_col("photo_score DOUBLE PRECISION", "photo_score REAL")
+    _add_col("photo_desc TEXT", "photo_desc TEXT")
+    _exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+
+
+def setting_get(key: str, default: str = "") -> str:
+    row = _exec("SELECT value FROM settings WHERE key=?", (key,), "one")
+    return row[0] if row and row[0] is not None else default
+
+
+def setting_set(key: str, value: str):
+    if PG:
+        _exec(
+            "INSERT INTO settings (key, value) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
+            (key, value),
+        )
+    else:
+        _exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
 
 
 def db_insert(pid: str, data: bytes, comment: str, sort: float):
@@ -317,6 +343,54 @@ def set_order(body: OrderIn, token: str = Query("")):
     clean = [i for i in body.ids if ID_RE.match(i)]
     db_set_order(clean)
     return {"ok": True, "count": len(clean)}
+
+
+# ---- Sieger-Show (KI-Wettbewerb) --------------------------------------------
+def _compute_winners() -> dict:
+    cw = _exec(
+        f"SELECT id, comment, comm_score FROM photos WHERE hidden={_FALSE} "
+        f"AND comment<>'' AND comm_score IS NOT NULL ORDER BY comm_score DESC, sort ASC LIMIT 1",
+        (), "one",
+    )
+    pw = _exec(
+        f"SELECT id, photo_desc, photo_score FROM photos WHERE hidden={_FALSE} "
+        f"AND photo_score IS NOT NULL ORDER BY photo_score DESC, sort ASC LIMIT 1",
+        (), "one",
+    )
+    out = {}
+    if cw:
+        out["commonality"] = {"id": cw[0], "text": cw[1], "url": f"/photo/{cw[0]}", "score": cw[2]}
+    if pw:
+        out["photo"] = {"id": pw[0], "desc": pw[1] or "", "url": f"/photo/{pw[0]}", "score": pw[2]}
+    return out
+
+
+@app.post("/api/ceremony/start")
+def ceremony_start(token: str = Query("")):
+    _require_admin(token)
+    winners = _compute_winners()
+    setting_set("ceremony_winners", json.dumps(winners))
+    setting_set("ceremony_active", "1")
+    return {"ok": True, "winners": winners}
+
+
+@app.post("/api/ceremony/stop")
+def ceremony_stop(token: str = Query("")):
+    _require_admin(token)
+    setting_set("ceremony_active", "0")
+    return {"ok": True}
+
+
+@app.get("/api/ceremony")
+def ceremony_get():
+    active = setting_get("ceremony_active", "0") == "1"
+    winners = {}
+    if active:
+        try:
+            winners = json.loads(setting_get("ceremony_winners", "{}"))
+        except Exception:
+            winners = {}
+    return {"active": active, "winners": winners}
 
 
 @app.get("/api/qr.png")

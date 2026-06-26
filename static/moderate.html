@@ -24,6 +24,12 @@
 
   .bar{display:flex; align-items:center; gap:10px; margin:6px 0 16px}
   .bar .btn{background:#374151}
+  .ceremony{background:#1a2230; border:1px solid #2b3546; border-radius:14px; padding:14px; margin-bottom:14px}
+  .cer-row{display:flex; gap:8px; margin:10px 0 4px}
+  .cer-row .btn{flex:1; font-size:14px}
+  .btn.cer-start{background:linear-gradient(135deg,#c8772f,#e0a04a)}
+  .btn.cer-stop{background:#374151}
+  #cer-state{font-weight:700}
 
   .card{background:#161c27; border:1px solid #232c3a; border-radius:16px; padding:12px; margin-bottom:14px}
   .card .pic{position:relative; border-radius:12px; overflow:hidden; background:#000; aspect-ratio:16/10}
@@ -60,6 +66,14 @@
       <span class="muted" id="status">…</span>
       <button class="btn" id="btn-refresh" style="margin-left:auto">↻ Aktualisieren</button>
     </div>
+    <div class="ceremony">
+      <div><b>🏆 Sieger-Show</b> <span id="cer-state" class="muted"></span></div>
+      <div class="cer-row">
+        <button class="btn cer-start" id="btn-cer-start">🏆 Sieger küren</button>
+        <button class="btn cer-stop" id="btn-cer-stop">▶ Zurück zu Fotos</button>
+      </div>
+      <div class="muted" id="cer-info"></div>
+    </div>
     <div class="muted" style="margin-bottom:14px">Reihenfolge mit ▲▼ ändern · Kommentar bearbeiten + 💾 speichern · 🗑 entfernt vom Fernseher (bleibt auf dem Server gesichert).</div>
     <div id="list"></div>
     <div class="empty hidden" id="empty">Noch keine Fotos.</div>
@@ -92,8 +106,33 @@ async function load(){
     const list = $('#list'); list.innerHTML='';
     photos.forEach(p=> list.appendChild(card(p)));
     refreshControls();
+    cerRefresh();
   }catch(e){ $('#status').textContent='Fehler beim Laden'; }
 }
+
+async function cerRefresh(){
+  try{
+    const c = await (await fetch('/api/ceremony')).json();
+    const w = c.winners || {};
+    $('#cer-state').textContent = c.active ? '· läuft gerade auf dem TV ▶' : '· aus';
+    $('#cer-state').style.color = c.active ? '#34d399' : '#9ca3af';
+    let info = '';
+    if(c.active){
+      if(w.commonality) info += '🏆 Gemeinsamkeit: „'+w.commonality.text+'" ('+Math.round(w.commonality.score)+')  ';
+      if(w.photo) info += '📸 Foto-Score '+Math.round(w.photo.score);
+      if(!w.commonality && !w.photo) info = 'Noch keine bewerteten Fotos — Sieger erscheinen, sobald die KI bewertet hat.';
+    }
+    $('#cer-info').textContent = info;
+  }catch(e){}
+}
+$('#btn-cer-start').addEventListener('click', async ()=>{
+  const r = await fetch('/api/ceremony/start?token='+q(TOKEN), {method:'POST'});
+  if(r.ok){ const d = await r.json(); if(!d.winners || (!d.winners.commonality && !d.winners.photo)) alert('Achtung: noch keine bewerteten Fotos vorhanden. Die Show startet, zeigt aber erst Sieger, sobald die KI bewertet hat.'); cerRefresh(); }
+  else alert('Fehler.');
+});
+$('#btn-cer-stop').addEventListener('click', async ()=>{
+  await fetch('/api/ceremony/stop?token='+q(TOKEN), {method:'POST'}); cerRefresh();
+});
 
 function card(p){
   const el = document.createElement('div'); el.className='card'; el.dataset.id=p.id;
