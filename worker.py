@@ -34,9 +34,14 @@ BATCH = int(os.environ.get("BACKUP_BATCH", "25"))
 
 # --- KI-Bewertung (Vertex Gemini, EU) ---
 VERTEX_SA_JSON = os.environ.get("VERTEX_SA_JSON", "")
-VERTEX_PROJECT = os.environ.get("VERTEX_PROJECT_ID", "")
-VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "europe-west3")
-VERTEX_MODEL = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash")
+try:
+    _SA_INFO = json.loads(VERTEX_SA_JSON) if VERTEX_SA_JSON else {}
+except Exception:
+    _SA_INFO = {}
+# Projekt autoritativ aus der SA-JSON (sonst ENV), Whitespace strippen.
+VERTEX_PROJECT = (_SA_INFO.get("project_id") or os.environ.get("VERTEX_PROJECT_ID", "")).strip()
+VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "europe-west3").strip()
+VERTEX_MODEL = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash").strip()
 SCORE_BATCH = int(os.environ.get("SCORE_BATCH", "15"))
 SCORING_ON = bool(VERTEX_SA_JSON and VERTEX_PROJECT)
 
@@ -61,7 +66,7 @@ def _vertex_token() -> str:
     global _sa_creds
     if _sa_creds is None:
         _sa_creds = service_account.Credentials.from_service_account_info(
-            json.loads(VERTEX_SA_JSON), scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            _SA_INFO, scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
     if not _sa_creds.valid:
         _sa_creds.refresh(GAuthRequest())
