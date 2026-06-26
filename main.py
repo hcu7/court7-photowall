@@ -72,6 +72,7 @@ MAX_DIM = int(os.environ.get("MAX_DIM", "2200"))
 JPEG_QUALITY = int(os.environ.get("JPEG_QUALITY", "85"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "40")) * 1024 * 1024
 MAX_COMMENT = 280
+APP_BOOT = str(int(time.time()))  # ändert sich bei jedem (Re)Deploy -> TV lädt automatisch neu
 
 ID_RE = re.compile(r"^\d{13,}-[a-f0-9]{8}$")
 
@@ -272,6 +273,7 @@ def get_photos():
     return {
         "photos": [{"id": r[0], "url": f"/photo/{r[0]}", "comment": r[1] or ""} for r in rows],
         "count": len(rows),
+        "version": APP_BOOT,
     }
 
 
@@ -527,19 +529,22 @@ def qr_png(request: Request, data: str = Query("")):
 # ---------------------------------------------------------------------------
 # Seiten
 # ---------------------------------------------------------------------------
+_NOCACHE = {"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"}
+
+
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "upload.html")
+    return FileResponse(STATIC / "upload.html", headers=_NOCACHE)
 
 
 @app.get("/tv")
 def tv():
-    return FileResponse(STATIC / "tv.html")
+    return FileResponse(STATIC / "tv.html", headers=_NOCACHE)
 
 
 @app.get("/moderate")
 def moderate():
-    return FileResponse(STATIC / "moderate.html")
+    return FileResponse(STATIC / "moderate.html", headers=_NOCACHE)
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")

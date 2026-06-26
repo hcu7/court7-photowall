@@ -347,6 +347,8 @@ async function poll(){
   try{
     const r = await fetch('/api/photos');
     const data = await r.json();
+    // Nach einem Deploy ändert sich die Version -> Fernseher lädt automatisch neu.
+    if(data.version){ if(window.__ver && window.__ver !== data.version){ location.reload(); return; } window.__ver = data.version; }
     const photos = data.photos || [];
     const n = data.count||0;
     $('#count').textContent = n + ' Foto' + (n===1?'':'s');
