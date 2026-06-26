@@ -34,8 +34,8 @@
   .lead{margin:0; font-size:16px; font-weight:700; line-height:1.35}
   .game{background:#f0f7f2; border:1px solid #bfe0cc; border-radius:16px; padding:14px 16px; margin-top:14px; font-size:15px; line-height:1.4}
   .game-h{font-weight:800; color:#1f6b4d; margin-bottom:6px; font-size:15.5px}
-  .award{background:#fdf6e3; border:1px solid #e7c77a; border-radius:14px; padding:11px 14px; margin-top:10px; font-size:14.5px; line-height:1.4; color:#8a6d1f}
-  .lead-fun{margin-top:14px; font-size:15px; line-height:1.4; font-weight:600}
+  .game-sub{margin-top:7px; font-size:13.5px; color:#8a6d1f; font-weight:700}
+  .disclaimer{margin:14px auto 6px; max-width:460px; font-size:11.5px; line-height:1.35; color:var(--muted); text-align:center}
 
   .hint{display:flex; align-items:center; gap:12px; background:#fff7ed; border:1px solid #fed7aa;
     color:var(--warn); border-radius:16px; padding:12px 14px; margin-top:14px; font-size:14.5px; font-weight:600}
@@ -101,7 +101,7 @@
   <header>
     <div class="kicker">📸 Foto-Wall</div>
     <h1 id="title">…</h1>
-    <div class="sub">Teile deine Fotos vom Abend — sie erscheinen live auf dem Fernseher. 🎉</div>
+    <div class="sub">Live auf dem Fernseher 🎉</div>
   </header>
 
   <!-- START -->
@@ -110,17 +110,15 @@
       <div id="contest-box">
         <div class="game">
           <div class="game-h">🎲 Mitmach-Spiel</div>
-          Finde jemanden, mit dem du <b>etwas gemeinsam</b> hast — <b>kein Beruf, kein Wohnort!</b>
-          Macht zusammen ein Foto und schreibt eure Gemeinsamkeit unten als Kommentar dazu.
+          Findet eine <b>Gemeinsamkeit</b> (kein Beruf/Wohnort), Foto zusammen, als Kommentar dazu.
+          <div class="game-sub">🏆 Prämiert: originellste Gemeinsamkeit + lustigstes Foto.</div>
         </div>
-        <div class="award">🏆 <b>Siegerehrung am Abend:</b> die originellste <b>Gemeinsamkeit</b> und das <b>lustigste Foto</b> werden gekürt!</div>
       </div>
-      <div class="lead-fun">📸 Und einfach so: Knipst den <b>ganzen Abend</b>, was Spaß macht — lustige Fotos sind ausdrücklich erwünscht!</div>
       <div class="hint">
         <span class="rotate" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
         </span>
-        <span>Bitte <b>quer</b> halten — Querformat sieht auf dem Fernseher am besten aus.</span>
+        <span><b>Quer</b> halten 📺 · sonst einfach knipsen, was Spaß macht!</span>
       </div>
     </div>
     <button class="btn" id="btn-capture">📸 Foto aufnehmen</button>
@@ -160,6 +158,7 @@
     </div>
   </section>
 
+  <div class="disclaimer">🤖 Mit dem Upload ist's ok, dass eine KI die Fotos fürs Spiel bewertet — unter Freunden ja kein Ding 😉</div>
   <div class="foot" id="foot"></div>
 </div>
 
