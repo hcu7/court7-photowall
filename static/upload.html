@@ -34,6 +34,8 @@
   .lead{margin:0; font-size:16px; font-weight:700; line-height:1.35}
   .game{background:#f0f7f2; border:1px solid #bfe0cc; border-radius:16px; padding:14px 16px; margin-top:14px; font-size:15px; line-height:1.4}
   .game-h{font-weight:800; color:#1f6b4d; margin-bottom:6px; font-size:15.5px}
+  .award{background:#fdf6e3; border:1px solid #e7c77a; border-radius:14px; padding:11px 14px; margin-top:10px; font-size:14.5px; line-height:1.4; color:#8a6d1f}
+  .lead-fun{margin-top:14px; font-size:15px; line-height:1.4; font-weight:600}
 
   .hint{display:flex; align-items:center; gap:12px; background:#fff7ed; border:1px solid #fed7aa;
     color:var(--warn); border-radius:16px; padding:12px 14px; margin-top:14px; font-size:14.5px; font-weight:600}
@@ -105,11 +107,15 @@
   <!-- START -->
   <section id="view-start">
     <div class="card">
-      <div class="game">
-        <div class="game-h">🎲 Mitmach-Spiel</div>
-        Finde jemanden, mit dem du <b>etwas gemeinsam</b> hast — <b>kein Beruf, kein Wohnort!</b>
-        Macht zusammen ein Foto und schreibt eure Gemeinsamkeit unten als Kommentar dazu.
+      <div id="contest-box">
+        <div class="game">
+          <div class="game-h">🎲 Mitmach-Spiel</div>
+          Finde jemanden, mit dem du <b>etwas gemeinsam</b> hast — <b>kein Beruf, kein Wohnort!</b>
+          Macht zusammen ein Foto und schreibt eure Gemeinsamkeit unten als Kommentar dazu.
+        </div>
+        <div class="award">🏆 <b>Siegerehrung am Abend:</b> die originellste <b>Gemeinsamkeit</b> und das <b>lustigste Foto</b> werden gekürt!</div>
       </div>
+      <div class="lead-fun">📸 Und einfach so: Knipst den <b>ganzen Abend</b>, was Spaß macht — lustige Fotos sind ausdrücklich erwünscht!</div>
       <div class="hint">
         <span class="rotate" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
@@ -128,7 +134,7 @@
       <div class="warnbar" id="warn-portrait">📱 Hochkant erkannt — quer sieht auf dem Fernseher schöner aus. Du kannst es trotzdem hochladen.</div>
       <div class="notice" id="notice-cap"></div>
       <div class="field">
-        <label for="comment">Eure Gemeinsamkeit ✍️ <span style="font-weight:400">(oder ein Spruch zum Foto) — erscheint auf dem Fernseher 📺</span></label>
+        <label for="comment" id="comment-label">Eure Gemeinsamkeit ✍️ <span style="font-weight:400">(oder ein Spruch zum Foto) — erscheint auf dem Fernseher 📺</span></label>
         <textarea id="comment" maxlength="280" rows="2" placeholder="z. B. Wir waren beide schon in Neuseeland 🥝"></textarea>
         <div class="cc"><span id="cc">0</span>/280</div>
       </div>
@@ -177,6 +183,21 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
   const cap = $('#file-capture');
   if(c.frontCamera) cap.setAttribute('capture','user'); else cap.setAttribute('capture','environment');
 }).catch(()=>{ $('#title').textContent='Foto-Wall'; });
+
+// Contest-Status: läuft -> Mitmach-Spiel + Siegerehrung zeigen; beendet -> Gemeinsamkeit-Teil raus.
+function applyContest(state){
+  const ended = (state === 'ended');
+  const cb = $('#contest-box'); if(cb) cb.style.display = ended ? 'none' : '';
+  const cl = $('#comment-label');
+  if(cl) cl.innerHTML = ended
+    ? 'Kommentar zum Foto ✍️ <span style="font-weight:400">— erscheint auf dem Fernseher 📺</span>'
+    : 'Eure Gemeinsamkeit ✍️ <span style="font-weight:400">(oder ein Spruch zum Foto) — erscheint auf dem Fernseher 📺</span>';
+  const ta = $('#comment');
+  if(ta) ta.placeholder = ended ? 'z. B. Auf dich, Antje! 🎉' : 'z. B. Wir waren beide schon in Neuseeland 🥝';
+}
+const pollContest = ()=> fetch('/api/ceremony').then(r=>r.json()).then(c=> applyContest(c.state)).catch(()=>{});
+pollContest();
+setInterval(pollContest, 30000);
 
 $('#btn-capture').addEventListener('click', ()=> $('#file-capture').click());
 $('#btn-gallery').addEventListener('click', ()=> $('#file-gallery').click());
