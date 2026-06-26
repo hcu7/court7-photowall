@@ -53,6 +53,12 @@
 
   @keyframes kb{from{transform:scale(1.02) translateZ(0)}to{transform:scale(1.07) translateZ(0)}}
 
+  #winnerbadge{position:fixed; top:clamp(96px,12vh,150px); left:50%; transform:translateX(-50%); z-index:11;
+    background:linear-gradient(135deg,#e0a04a,#c8772f); color:#0a0d14; font-weight:900;
+    font-size:clamp(15px,1.8vw,26px); padding:10px 24px; border-radius:999px; box-shadow:0 8px 30px rgba(0,0,0,.5);
+    display:none; max-width:84vw; text-align:center}
+  #winnerbadge.show{display:block}
+
   /* COURT7-Werbung (alle paar Bilder) */
   #ad{position:fixed; inset:0; z-index:30; display:flex; opacity:0; transition:opacity .6s ease;
     background:linear-gradient(135deg,var(--green),var(--green2) 70%)}
@@ -120,6 +126,7 @@
   <div id="comment"></div>
 
   <div id="newbadge">Neu! 🎉</div>
+  <div id="winnerbadge"></div>
 
   <div id="ad" class="hidden">
     <div class="ad-left">
@@ -244,6 +251,15 @@ async function show(id, spotlight){
   cEl.textContent = comment;
   cEl.classList.toggle('show', !!comment);
 
+  // Sieger-Badge: nach Wettbewerbsende werden die Siegerfotos in der Diashow markiert.
+  let wt = '';
+  if(ceremony.state === 'ended'){
+    const w = ceremony.winners || {};
+    if(w.commonality && w.commonality.id === id) wt = '🏆 Originellste Gemeinsamkeit';
+    if(w.photo && w.photo.id === id) wt = (wt ? wt + '  ·  ' : '') + '🏆 Originellstes Foto';
+  }
+  const wb = $('#winnerbadge'); wb.textContent = wt; wb.classList.toggle('show', !!wt);
+
   if(spotlight){ const b=$('#newbadge'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
 }
 
@@ -255,8 +271,12 @@ async function showAd(ad){
   $('#ad-qr').src = '/api/qr.png?data=' + encodeURIComponent(ad.url);
   const wrap = $('#ad-imgs'); wrap.innerHTML = '';
   const cls = ad.imgs.length > 1 ? 'two' : 'one';
-  for(const src of ad.imgs){ const im = document.createElement('img'); im.className = cls; im.src = src; wrap.appendChild(im); }
-  await Promise.all(ad.imgs.map(decode));
+  const els = ad.imgs.map(src => { const im = document.createElement('img'); im.className = cls; im.src = src; wrap.appendChild(im); return im; });
+  // Die TATSÄCHLICH angezeigten <img> dekodieren, bevor eingeblendet wird (kein leeres Panel).
+  await Promise.all(els.map(im => (im.complete && im.naturalWidth) ? Promise.resolve() : new Promise(res => {
+    if(im.decode){ im.decode().then(res).catch(res); } else { im.onload = res; im.onerror = res; }
+    setTimeout(res, 2500);
+  })));
   $('#ad').classList.remove('hidden'); void $('#ad').offsetWidth;
   $('#ad').classList.add('show');
   await sleep(AD_SECONDS*1000);

@@ -33,7 +33,14 @@ import os
 import re
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
+
+try:
+    from zoneinfo import ZoneInfo
+    _TZ = ZoneInfo("Europe/Berlin")
+except Exception:  # pragma: no cover
+    _TZ = None
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -365,13 +372,39 @@ def _compute_winners() -> dict:
     return out
 
 
+def _current_winners() -> dict:
+    """Bei beendetem Wettbewerb die eingefrorenen Sieger, sonst live berechnet."""
+    if setting_get("comp_state", "live") == "ended":
+        try:
+            return json.loads(setting_get("winners_locked", "{}"))
+        except Exception:
+            return {}
+    return _compute_winners()
+
+
+def _deadline_passed(end: str) -> bool:
+    if not end:
+        return False
+    try:
+        dt = datetime.fromisoformat(end)
+        if dt.tzinfo is None and _TZ is not None:
+            dt = dt.replace(tzinfo=_TZ)
+        now = datetime.now(_TZ) if _TZ is not None else datetime.now()
+        return now >= dt
+    except Exception:
+        return False
+
+
+def _end_competition():
+    setting_set("winners_locked", json.dumps(_compute_winners()))
+    setting_set("comp_state", "ended")
+
+
 @app.post("/api/ceremony/start")
 def ceremony_start(token: str = Query("")):
     _require_admin(token)
-    winners = _compute_winners()
-    setting_set("ceremony_winners", json.dumps(winners))
     setting_set("ceremony_active", "1")
-    return {"ok": True, "winners": winners}
+    return {"ok": True, "winners": _current_winners()}
 
 
 @app.post("/api/ceremony/stop")
@@ -381,16 +414,94 @@ def ceremony_stop(token: str = Query("")):
     return {"ok": True}
 
 
+@app.post("/api/ceremony/end")
+def ceremony_end(token: str = Query("")):
+    """Wettbewerb beenden: Sieger einfrieren (werden danach in der Diashow markiert)."""
+    _require_admin(token)
+    _end_competition()
+    return {"ok": True, "winners": _current_winners()}
+
+
+@app.post("/api/ceremony/reopen")
+def ceremony_reopen(token: str = Query("")):
+    _require_admin(token)
+    setting_set("comp_state", "live")
+    setting_set("winners_locked", "")
+    return {"ok": True}
+
+
+@app.post("/api/ceremony/deadline")
+def ceremony_deadline(end: str = Form(""), token: str = Query("")):
+    _require_admin(token)
+    setting_set("competition_end", end.strip())
+    return {"ok": True, "end": end.strip()}
+
+
 @app.get("/api/ceremony")
 def ceremony_get():
-    active = setting_get("ceremony_active", "0") == "1"
-    winners = {}
-    if active:
+    state = setting_get("comp_state", "live")
+    end = setting_get("competition_end", "")
+    # Deadline erreicht? -> Wettbewerb automatisch beenden + Sieger-Show starten.
+    if state == "live" and _deadline_passed(end):
+        _end_competition()
+        setting_set("ceremony_active", "1")
+        state = "ended"
+    return {
+        "active": setting_get("ceremony_active", "0") == "1",
+        "state": state,
+        "end": end,
+        "winners": _current_winners(),
+    }
+
+
+@app.get("/api/admin/standings")
+def admin_standings(token: str = Query("")):
+    _require_admin(token)
+    comm = _exec(
+        f"SELECT id, comment, comm_score FROM photos WHERE hidden={_FALSE} AND comment<>'' "
+        f"AND comm_score IS NOT NULL ORDER BY comm_score DESC, sort ASC LIMIT 8", (), "all") or []
+    phot = _exec(
+        f"SELECT id, photo_desc, photo_score FROM photos WHERE hidden={_FALSE} "
+        f"AND photo_score IS NOT NULL ORDER BY photo_score DESC, sort ASC LIMIT 8", (), "all") or []
+    scored = (_exec(f"SELECT COUNT(*) FROM photos WHERE hidden={_FALSE} AND scored={_TRUE}", (), "one") or [0])[0]
+    return {
+        "state": setting_get("comp_state", "live"),
+        "active": setting_get("ceremony_active", "0") == "1",
+        "end": setting_get("competition_end", ""),
+        "scored": int(scored), "total": db_count(),
+        "commonalities": [{"id": r[0], "text": r[1], "url": f"/photo/{r[0]}", "score": r[2]} for r in comm],
+        "photos": [{"id": r[0], "desc": r[1] or "", "url": f"/photo/{r[0]}", "score": r[2]} for r in phot],
+    }
+
+
+@app.post("/api/photos/{pid}/score")
+def set_score(pid: str, comm_score: str | None = Form(None), photo_score: str | None = Form(None), token: str = Query("")):
+    """Manuelle Score-Korrektur. Nur übergebene Felder werden geändert
+    (leer = auf NULL setzen)."""
+    _require_admin(token)
+    if not ID_RE.match(pid) or not db_exists(pid):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    def pf(s):
+        s = s.strip().replace(",", ".")
+        if s == "":
+            return None
         try:
-            winners = json.loads(setting_get("ceremony_winners", "{}"))
+            return max(0.0, min(100.0, float(s)))
         except Exception:
-            winners = {}
-    return {"active": active, "winners": winners}
+            return None
+
+    sets, params = [], []
+    if comm_score is not None:
+        sets.append(f"comm_score={PH}"); params.append(pf(comm_score))
+    if photo_score is not None:
+        sets.append(f"photo_score={PH}"); params.append(pf(photo_score))
+    if not sets:
+        return {"ok": True}
+    sets.append(f"scored={_TRUE}")
+    params.append(pid)
+    _exec(f"UPDATE photos SET {', '.join(sets)} WHERE id={PH}", tuple(params))
+    return {"ok": True}
 
 
 @app.get("/api/qr.png")

@@ -30,6 +30,21 @@
   .btn.cer-start{background:linear-gradient(135deg,#c8772f,#e0a04a)}
   .btn.cer-stop{background:#374151}
   #cer-state{font-weight:700}
+  .cer-head{margin-bottom:4px}
+  .btn.cer-end{background:#7f1d1d}
+  .btn.cer-reopen{background:#374151}
+  .cer-deadline{margin-top:10px}
+  .cer-deadline label{display:block; margin-bottom:6px; font-size:12.5px}
+  .cer-deadline input[type=datetime-local]{flex:1; min-width:0; background:#0f1520; color:#fff; border:1px solid #2b3546; border-radius:11px; padding:10px; font-size:14px; font-family:inherit}
+  .cer-sub{margin-top:8px}
+  .standings{margin-top:12px; border-top:1px solid #232c3a; padding-top:10px}
+  .standings summary{cursor:pointer; font-weight:700; font-size:14px; color:#e0a04a}
+  .st-row{display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #1c2430}
+  .st-row .rank{flex:0 0 auto; font-weight:800; color:#9ca3af; width:16px; text-align:center; font-size:13px}
+  .st-row img{width:46px; height:46px; object-fit:cover; border-radius:8px; flex:0 0 auto; background:#000}
+  .st-row .st-txt{flex:1; font-size:13px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .st-row input{width:56px; flex:0 0 auto; background:#0f1520; color:#fff; border:1px solid #2b3546; border-radius:8px; padding:7px; font-size:14px; text-align:center}
+  .st-row .st-save{flex:0 0 auto; background:#1f6b4d; border:0; border-radius:8px; color:#fff; font-weight:800; padding:7px 11px; cursor:pointer}
 
   .card{background:#161c27; border:1px solid #232c3a; border-radius:16px; padding:12px; margin-bottom:14px}
   .card .pic{position:relative; border-radius:12px; overflow:hidden; background:#000; aspect-ratio:16/10}
@@ -67,12 +82,32 @@
       <button class="btn" id="btn-refresh" style="margin-left:auto">↻ Aktualisieren</button>
     </div>
     <div class="ceremony">
-      <div><b>🏆 Sieger-Show</b> <span id="cer-state" class="muted"></span></div>
+      <div class="cer-head"><b>🏆 KI-Wettbewerb</b> <span id="cer-state" class="muted"></span></div>
       <div class="cer-row">
-        <button class="btn cer-start" id="btn-cer-start">🏆 Sieger küren</button>
+        <button class="btn cer-start" id="btn-cer-start">🏆 Sieger zeigen</button>
         <button class="btn cer-stop" id="btn-cer-stop">▶ Zurück zu Fotos</button>
       </div>
-      <div class="muted" id="cer-info"></div>
+      <div class="cer-row">
+        <button class="btn cer-end" id="btn-cer-end">🔒 Wettbewerb beenden</button>
+        <button class="btn cer-reopen" id="btn-cer-reopen">🔓 Wieder öffnen</button>
+      </div>
+      <div class="cer-deadline">
+        <label class="muted">Ende-Zeitpunkt (dann werden automatisch die Sieger gezeigt):</label>
+        <div class="cer-row">
+          <input type="datetime-local" id="cer-end-input" />
+          <button class="btn" id="btn-cer-deadline" style="flex:0 0 auto;background:#283142">Setzen</button>
+          <button class="btn" id="btn-cer-deadline-clear" style="flex:0 0 auto;background:#283142" title="Ende-Zeitpunkt löschen">✕</button>
+        </div>
+      </div>
+      <div class="muted cer-sub" id="cer-info"></div>
+      <details class="standings" id="standings">
+        <summary>Aktuelle Wertung ansehen / korrigieren</summary>
+        <div class="muted" style="margin:8px 0 4px">🏆 Gemeinsamkeiten (Score 0–100):</div>
+        <div id="st-comm"></div>
+        <div class="muted" style="margin:12px 0 4px">📸 Fotos (Score 0–100):</div>
+        <div id="st-photo"></div>
+        <button class="btn" id="btn-st-refresh" style="margin-top:10px;background:#374151">↻ Wertung neu laden</button>
+      </details>
     </div>
     <div class="muted" style="margin-bottom:14px">Reihenfolge mit ▲▼ ändern · Kommentar bearbeiten + 💾 speichern · 🗑 entfernt vom Fernseher (bleibt auf dem Server gesichert).</div>
     <div id="list"></div>
@@ -110,29 +145,47 @@ async function load(){
   }catch(e){ $('#status').textContent='Fehler beim Laden'; }
 }
 
+function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
 async function cerRefresh(){
   try{
-    const c = await (await fetch('/api/ceremony')).json();
-    const w = c.winners || {};
-    $('#cer-state').textContent = c.active ? '· läuft gerade auf dem TV ▶' : '· aus';
-    $('#cer-state').style.color = c.active ? '#34d399' : '#9ca3af';
-    let info = '';
-    if(c.active){
-      if(w.commonality) info += '🏆 Gemeinsamkeit: „'+w.commonality.text+'" ('+Math.round(w.commonality.score)+')  ';
-      if(w.photo) info += '📸 Foto-Score '+Math.round(w.photo.score);
-      if(!w.commonality && !w.photo) info = 'Noch keine bewerteten Fotos — Sieger erscheinen, sobald die KI bewertet hat.';
-    }
-    $('#cer-info').textContent = info;
+    const c = await (await fetch('/api/admin/standings?token='+q(TOKEN))).json();
+    const ended = c.state === 'ended';
+    $('#cer-state').textContent = '· ' + (c.active ? 'Sieger-Show läuft auf dem TV ▶' : (ended ? 'beendet — Sieger werden in der Diashow markiert' : 'läuft'));
+    $('#cer-state').style.color = c.active ? '#34d399' : (ended ? '#e0a04a' : '#9ca3af');
+    $('#cer-info').textContent = `${c.scored}/${c.total} Fotos von der KI bewertet` + (c.end ? ' · Ende: ' + c.end.replace('T',' ') : '');
+    if(c.end && !$('#cer-end-input').value) $('#cer-end-input').value = c.end;
+    renderStandings(c);
   }catch(e){}
 }
-$('#btn-cer-start').addEventListener('click', async ()=>{
-  const r = await fetch('/api/ceremony/start?token='+q(TOKEN), {method:'POST'});
-  if(r.ok){ const d = await r.json(); if(!d.winners || (!d.winners.commonality && !d.winners.photo)) alert('Achtung: noch keine bewerteten Fotos vorhanden. Die Show startet, zeigt aber erst Sieger, sobald die KI bewertet hat.'); cerRefresh(); }
-  else alert('Fehler.');
-});
-$('#btn-cer-stop').addEventListener('click', async ()=>{
-  await fetch('/api/ceremony/stop?token='+q(TOKEN), {method:'POST'}); cerRefresh();
-});
+function scoreRow(item, field, rank){
+  const el = document.createElement('div'); el.className = 'st-row';
+  const label = field === 'comm_score' ? (item.text || '') : (item.desc || '—');
+  el.innerHTML = `<span class="rank">${rank}</span><img src="${item.url}" loading="lazy" alt=""><div class="st-txt">${escapeHtml(label)}</div><input type="number" min="0" max="100" value="${Math.round(item.score)}"><button class="st-save">💾</button>`;
+  el.querySelector('.st-save').addEventListener('click', async ()=>{
+    const fd = new FormData(); fd.append(field, el.querySelector('input').value);
+    const r = await fetch('/api/photos/'+q(item.id)+'/score?token='+q(TOKEN), {method:'POST', body:fd});
+    const b = el.querySelector('.st-save'); b.textContent = r.ok ? '✓' : '✗'; setTimeout(()=>{ b.textContent='💾'; }, 1500);
+  });
+  return el;
+}
+function renderStandings(c){
+  const sc = $('#st-comm'); sc.innerHTML='';
+  (c.commonalities||[]).forEach((it,i)=> sc.appendChild(scoreRow(it,'comm_score',i+1)));
+  if(!(c.commonalities||[]).length) sc.innerHTML='<div class="muted" style="font-size:13px">noch keine bewerteten Gemeinsamkeiten</div>';
+  const sp = $('#st-photo'); sp.innerHTML='';
+  (c.photos||[]).forEach((it,i)=> sp.appendChild(scoreRow(it,'photo_score',i+1)));
+  if(!(c.photos||[]).length) sp.innerHTML='<div class="muted" style="font-size:13px">noch keine bewerteten Fotos</div>';
+}
+const cerPost = path => fetch('/api/ceremony/'+path+'?token='+q(TOKEN), {method:'POST'});
+$('#btn-cer-start').addEventListener('click', async ()=>{ await cerPost('start'); cerRefresh(); });
+$('#btn-cer-stop').addEventListener('click', async ()=>{ await cerPost('stop'); cerRefresh(); });
+$('#btn-cer-end').addEventListener('click', async ()=>{ if(confirm('Wettbewerb beenden? Die aktuellen Sieger werden eingefroren und danach in der Diashow markiert.')){ await cerPost('end'); cerRefresh(); } });
+$('#btn-cer-reopen').addEventListener('click', async ()=>{ await cerPost('reopen'); cerRefresh(); });
+async function setDeadline(v){ const fd=new FormData(); fd.append('end', v); await fetch('/api/ceremony/deadline?token='+q(TOKEN), {method:'POST', body:fd}); cerRefresh(); }
+$('#btn-cer-deadline').addEventListener('click', ()=> setDeadline($('#cer-end-input').value));
+$('#btn-cer-deadline-clear').addEventListener('click', ()=>{ $('#cer-end-input').value=''; setDeadline(''); });
+$('#btn-st-refresh').addEventListener('click', cerRefresh);
 
 function card(p){
   const el = document.createElement('div'); el.className='card'; el.dataset.id=p.id;
