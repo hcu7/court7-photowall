@@ -15,8 +15,7 @@
     transition:opacity .9s ease; will-change:opacity; transform:translateZ(0); backface-visibility:hidden}
   .layer .bg{position:absolute; inset:0; background-size:cover; background-position:center;
     filter:blur(16px) brightness(.5); transform:scale(1.1) translateZ(0)}
-  .layer .fg{position:absolute; inset:0; background-size:contain; background-position:center;
-    background-repeat:no-repeat; transform:translateZ(0)}
+  .layer .fg{position:absolute; inset:0; object-fit:contain; transform:translateZ(0); will-change:transform}
 
   /* QR-Ecke oben links */
   #qr{position:fixed; left:34px; top:30px; z-index:10; display:flex; align-items:center; gap:14px;
@@ -107,7 +106,7 @@
   #cer-sub{font-size:clamp(16px,2vw,28px); opacity:.85; max-width:24em}
   #ceremony .cer-photo{position:absolute; inset:0; display:none}
   #cer-bg{position:absolute; inset:0; background-size:cover; background-position:center; filter:blur(18px) brightness(.4); transform:scale(1.1)}
-  #cer-fg{position:absolute; inset:0; background-size:contain; background-position:center; background-repeat:no-repeat; transition:inset .5s ease}
+  #cer-fg{position:absolute; inset:0; object-fit:contain; transition:inset .5s ease}
   #ceremony.reveal #cer-fg{inset:0 0 27% 0}
   #cer-caption{position:absolute; left:0; right:0; bottom:0; height:27%; display:none; flex-direction:column; align-items:center; justify-content:center; gap:clamp(8px,1.4vh,18px); text-align:center; padding:0 6vw 5vh; background:linear-gradient(0deg, rgba(10,13,20,.95), rgba(10,13,20,.55) 62%, transparent)}
   #ceremony.reveal #cer-caption{display:flex}
@@ -128,8 +127,8 @@
 </head>
 <body>
   <div id="stage">
-    <div class="layer" id="layerA"><div class="bg"></div><div class="fg"></div></div>
-    <div class="layer" id="layerB"><div class="bg"></div><div class="fg"></div></div>
+    <div class="layer" id="layerA"><div class="bg"></div><img class="fg" alt=""></div>
+    <div class="layer" id="layerB"><div class="bg"></div><img class="fg" alt=""></div>
   </div>
 
   <div id="scrim-top"></div>
@@ -169,7 +168,7 @@
   <div id="ceremony" class="hidden">
     <div class="cer-photo" id="cer-photo">
       <div class="cer-bg" id="cer-bg"></div>
-      <div class="cer-fg" id="cer-fg"></div>
+      <img class="cer-fg" id="cer-fg" alt="" />
     </div>
     <div class="cer-caption" id="cer-caption">
       <div class="cer-cap-kicker" id="cer-cap-kicker"></div>
@@ -242,6 +241,9 @@ fetch('/api/config').then(r=>r.json()).then(c=>{
 }).catch(()=>{});
 
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const nextFrame = () => new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+// Genau das sichtbare <img> dekodieren -> atomarer Paint (kein Halb-Bild auf Fire TV). Timeout als Sicherheitsnetz.
+function decodeImg(img){ return img && img.decode ? Promise.race([img.decode().catch(()=>{}), sleep(3000)]) : Promise.resolve(); }
 
 // Bild komplett vordecodieren, BEVOR es als background-image gesetzt wird:
 // background-image malt atomar (kein progressives Halb-Laden wie <img>) und
@@ -264,14 +266,15 @@ function dwellFor(comment, spotlight){
 
 async function show(id, spotlight){
   const inc = layers[(cur+1)%2], out = layers[cur];
-  const fgUrl = `/photo/${id}`;          // VOLLES Bild — zuverlässig, kein Resize-Stau unter Last (kein Schwarz)
+  const fgUrl = `/photo/${id}`;          // volles Bild (1600px), als echtes <img>
   const bgUrl = `/photo/${id}?w=400`;    // vorab erzeugter Blur-Hintergrund (lädt async)
-  await decode(fgUrl);                    // nur das sichtbare Foto abwarten
-  inc.fg.style.backgroundImage = `url("${fgUrl}")`;
+  inc.fg.src = fgUrl;
+  await decodeImg(inc.fg);                // genau dieses <img> dekodieren -> atomarer Paint, kein Halb-Bild
   inc.bg.style.backgroundImage = `url("${bgUrl}")`;   // bg ohne decode-gate -> blockiert das Foto nie
   inc.fg.style.animation = 'none'; void inc.fg.offsetWidth;
   inc.fg.style.animation = 'kb 9s ease-in-out infinite alternate';   // Dauer-Zoom -> ständige Bewegung, hält den TV wach
   inc.root.style.zIndex = 2; out.root.style.zIndex = 1;
+  await nextFrame();                      // ein Frame, damit das dekodierte Bild sitzt, bevor das Crossfade startet
   inc.root.style.opacity = '1';
   cur = (cur+1)%2;
   setTimeout(()=>{ out.root.style.opacity = '0'; out.fg.style.animation = 'none'; }, 950);  // unsichtbare Ebene nicht weiter zoomen (GPU sparen)
@@ -381,11 +384,11 @@ async function ceremonyTick(){
   }
 
   // 'reveal' | 'big' -> Foto IMMER sichtbar (auch bei der Gemeinsamkeit)
-  const fgU = sl.url, bgU = sl.url + '?w=400';   // Anzeige-Foto + vorab erzeugter Blur-BG
-  await decode(fgU);
+  const fgU = sl.url, bgU = sl.url + '?w=400';   // Anzeige-Foto (<img>) + vorab erzeugter Blur-BG
+  $('#cer-fg').src = fgU;
+  await decodeImg($('#cer-fg'));
   $('#cer-card').style.display = 'none'; $('#cer-photo').style.display = 'block';
   $('#cer-bg').style.backgroundImage = `url("${bgU}")`;
-  $('#cer-fg').style.backgroundImage = `url("${fgU}")`;
   if(sl.type === 'reveal'){
     cerMode('reveal');
     $('#cer-cap-kicker').textContent = '🏆 ' + sl.kicker;
