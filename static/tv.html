@@ -43,13 +43,13 @@
   #scrim-bottom{position:fixed; bottom:0; left:0; right:0; height:240px; z-index:9;
     background:linear-gradient(0deg,rgba(0,0,0,.62),transparent); pointer-events:none}
 
-  #newbadge{position:fixed; top:50%; left:50%; transform:translate(-50%,-50%) scale(.6); z-index:20;
+  #newbadge{position:fixed; top:clamp(84px,10vh,130px); left:50%; transform:translateX(-50%) scale(.6); z-index:20;
     background:linear-gradient(135deg,#e0a04a,#c8772f); color:#fff; font-size:clamp(22px,3vw,42px); font-weight:900;
     padding:16px 34px; border-radius:999px; box-shadow:0 16px 60px rgba(0,0,0,.5); opacity:0; pointer-events:none}
   #newbadge.flash{animation:pop 2.4s ease forwards}
-  @keyframes pop{0%{opacity:0; transform:translate(-50%,-50%) scale(.6)}
-    12%{opacity:1; transform:translate(-50%,-50%) scale(1.05)}20%{transform:translate(-50%,-50%) scale(1)}
-    82%{opacity:1}100%{opacity:0; transform:translate(-50%,-58%) scale(1)}}
+  @keyframes pop{0%{opacity:0; transform:translateX(-50%) scale(.6)}
+    12%{opacity:1; transform:translateX(-50%) scale(1.05)}20%{transform:translateX(-50%) scale(1)}
+    82%{opacity:1}100%{opacity:0; transform:translateX(-50%) translateY(-10px) scale(1)}}
 
   @keyframes kb{from{transform:scale(1.02) translateZ(0)}to{transform:scale(1.07) translateZ(0)}}
 
