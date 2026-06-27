@@ -274,7 +274,6 @@ async function show(id, spotlight){
   inc.fg.style.animation = 'none'; void inc.fg.offsetWidth;
   inc.fg.style.animation = 'kb 9s ease-in-out infinite alternate';   // Dauer-Zoom -> ständige Bewegung, hält den TV wach
   inc.root.style.zIndex = 2; out.root.style.zIndex = 1;
-  await nextFrame();                      // ein Frame, damit das dekodierte Bild sitzt, bevor das Crossfade startet
   inc.root.style.opacity = '1';
   cur = (cur+1)%2;
   setTimeout(()=>{ out.root.style.opacity = '0'; out.fg.style.animation = 'none'; }, 950);  // unsichtbare Ebene nicht weiter zoomen (GPU sparen)
