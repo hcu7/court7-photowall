@@ -32,9 +32,17 @@
     box-shadow:0 12px 40px rgba(60,40,10,.10); padding:20px; margin-top:14px}
 
   .lead{margin:0; font-size:16px; font-weight:700; line-height:1.35}
-  .game{background:#f0f7f2; border:1px solid #bfe0cc; border-radius:16px; padding:14px 16px; margin-top:14px; font-size:15px; line-height:1.4}
-  .game-h{font-weight:800; color:#1f6b4d; margin-bottom:6px; font-size:15.5px}
-  .game-sub{margin-top:7px; font-size:13.5px; color:#8a6d1f; font-weight:700}
+  .cbox{border-radius:16px; padding:13px 15px; margin-top:11px; font-size:14px; line-height:1.45; color:#33403a}
+  .cbox.green{background:#f0f7f2; border:1px solid #bfe0cc}
+  .cbox.gold{background:#fdf3e0; border:1px solid #eccf93}
+  .cbox-h{display:flex; align-items:center; gap:8px; font-size:15.5px; font-weight:800; margin-bottom:6px}
+  .cbox.green .cbox-h{color:#1f6b4d}
+  .cbox.gold .cbox-h{color:#9a5a12}
+  .cbox .num{flex:0 0 auto; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:800; color:#fff}
+  .cbox.green .num{background:#1f6b4d}
+  .cbox.gold .num{background:#c8772f}
+  .cbox-sub{margin-top:7px; font-size:12.5px; font-weight:700; color:#1f6b4d}
+  .award{display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:700; color:#9a5a12; margin-top:12px; padding-left:2px}
   .disclaimer{margin:14px auto 6px; max-width:460px; font-size:11.5px; line-height:1.35; color:var(--muted); text-align:center}
 
   .hint{display:flex; align-items:center; gap:12px; background:#fff7ed; border:1px solid #fed7aa;
@@ -106,23 +114,26 @@
 
   <!-- START -->
   <section id="view-start">
-    <div class="card">
-      <div id="contest-box">
-        <div class="game">
-          <div class="game-h">🎲 Mitmach-Spiel</div>
-          Findet eine <b>Gemeinsamkeit</b> (kein Beruf/Wohnort), Foto zusammen, als Kommentar dazu.
-          <div class="game-sub">🏆 Prämiert: originellste Gemeinsamkeit + lustigstes Foto.</div>
-        </div>
-      </div>
-      <div class="hint">
-        <span class="rotate" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
-        </span>
-        <span><b>Quer</b> halten 📺 · sonst einfach knipsen, was Spaß macht!</span>
-      </div>
-    </div>
     <button class="btn" id="btn-capture">📸 Foto aufnehmen</button>
     <button class="btn secondary" id="btn-gallery">🖼 Aus Bibliothek hinzufügen</button>
+    <div id="contest-box" style="margin-top:6px">
+      <div class="cbox green">
+        <div class="cbox-h"><span class="num">1</span> Originellste Gemeinsamkeit</div>
+        Finde jemanden, mit dem du <b>etwas gemeinsam</b> hast — <b>kein Beruf, kein Wohnort.</b> Macht ein Foto zusammen und schreibt eure Gemeinsamkeit in den Kommentar.
+        <div class="cbox-sub">Mehrere Gemeinsamkeiten mit verschiedenen Leuten? Unbedingt — lad ruhig mehrere hoch.</div>
+      </div>
+      <div class="cbox gold">
+        <div class="cbox-h"><span class="num">2</span> Lustigstes Foto</div>
+        Macht das lustigste Foto des Abends — gern mit ein paar Partygästen. Auch hier: mehrere erwünscht!
+      </div>
+      <div class="award">🏆 Beide werden am Abend gekürt.</div>
+    </div>
+    <div class="hint">
+      <span class="rotate" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      </span>
+      <span><b>Quer</b> halten — sieht auf dem Fernseher am besten aus.</span>
+    </div>
   </section>
 
   <!-- REVIEW -->
