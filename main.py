@@ -360,6 +360,16 @@ def admin_photos(token: str = Query("")):
     return {"photos": [{"id": r[0], "url": f"/photo/{r[0]}", "comment": r[1] or ""} for r in rows]}
 
 
+@app.post("/api/admin/clear")
+def admin_clear(token: str = Query("")):
+    """Neustart: alle Fotos von der Wall ausblenden (NICHT hart löschen — bleiben in DB + Drive) + Wettbewerb auf 'läuft'."""
+    _require_admin(token)
+    n = db_count()
+    _exec(f"UPDATE photos SET hidden={_TRUE} WHERE hidden={_FALSE}")
+    _set_phase("running")
+    return {"ok": True, "hidden": n}
+
+
 @app.post("/api/photos/{pid}/hide")
 def hide_photo(pid: str, token: str = Query("")):
     _require_admin(token)

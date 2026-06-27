@@ -74,6 +74,7 @@
     <div class="bar">
       <span class="muted" id="status">…</span>
       <button class="btn" id="btn-refresh" style="margin-left:auto">↻ Aktualisieren</button>
+      <button class="btn" id="btn-clear" style="background:#7f1d1d">🗑 Wall leeren</button>
     </div>
     <div class="ceremony">
       <div class="cer-head"><b>🏆 KI-Wettbewerb</b> <span id="cer-state" class="muted"></span></div>
@@ -112,6 +113,13 @@ async function unlock(t){
 $('#btn-unlock').addEventListener('click', ()=> unlock($('#pin').value.trim()));
 $('#pin').addEventListener('keydown', e=>{ if(e.key==='Enter') unlock($('#pin').value.trim()); });
 $('#btn-refresh').addEventListener('click', load);
+$('#btn-clear').addEventListener('click', async ()=>{
+  if(!confirm('Neustart: ALLE Fotos von der Wall ausblenden und den Wettbewerb neu starten?\n\n(Die Fotos werden NICHT gelöscht — sie bleiben auf dem Server + im Drive-Backup gesichert.)')) return;
+  const r = await fetch('/api/admin/clear?token='+q(TOKEN), {method:'POST'});
+  const b = await r.json().catch(()=>({}));
+  alert(b.ok ? (b.hidden+' Fotos ausgeblendet — die Wall ist leer, der Wettbewerb läuft neu.') : 'Fehler beim Leeren.');
+  load(); cerRefresh();
+});
 
 function relock(){ localStorage.removeItem('pw_admin'); TOKEN=''; $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); $('#gate-err').textContent='Bitte erneut entsperren'; }
 
