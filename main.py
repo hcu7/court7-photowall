@@ -404,7 +404,7 @@ def _compute_winners() -> dict:
         (), "one",
     )
     pw = _exec(
-        f"SELECT id, photo_desc, photo_score FROM photos WHERE hidden={_FALSE} "
+        f"SELECT id, photo_desc, photo_score, comment FROM photos WHERE hidden={_FALSE} "
         f"AND photo_score IS NOT NULL ORDER BY photo_score DESC, sort ASC LIMIT 1",
         (), "one",
     )
@@ -412,7 +412,9 @@ def _compute_winners() -> dict:
     if cw:
         out["commonality"] = {"id": cw[0], "text": cw[1], "url": f"/photo/{cw[0]}", "score": cw[2]}
     if pw:
-        out["photo"] = {"id": pw[0], "desc": pw[1] or "", "url": f"/photo/{pw[0]}", "score": pw[2]}
+        # comment = der vom Gast/Admin gesetzte Kommentar (das wird auf dem TV gezeigt, nicht photo_desc)
+        out["photo"] = {"id": pw[0], "desc": pw[1] or "", "comment": pw[3] or "",
+                        "url": f"/photo/{pw[0]}", "score": pw[2]}
     return out
 
 
@@ -451,6 +453,7 @@ def _end_competition():
 #   ceremony = Siegerehrung laeuft (Sieger-Show auf dem TV)
 #   done     = beendet, Sieger in der Diashow markiert (weiter hochladbar)
 def _set_phase(phase: str):
+    setting_set("ceremony_reveal", "none")  # jeder Phasenwechsel setzt die Sieger-Show auf den Wartescreen zurueck
     if phase == "running":
         setting_set("comp_state", "live")
         setting_set("ceremony_active", "0")
@@ -489,6 +492,26 @@ def ceremony_phase(phase: str = Query(""), token: str = Query("")):
     return {"ok": True, "phase": _current_phase(), "winners": _current_winners()}
 
 
+@app.post("/api/ceremony/reveal")
+def ceremony_reveal(cat: str = Query(""), token: str = Query("")):
+    """Moderator enthuellt eine Kategorie. Der TV spielt 1x Countdown + Reveal und laesst
+    das Siegerfoto stehen, bis die naechste Kategorie/Phase kommt.
+      none         = Wartescreen 'Siegerehrung'
+      commonality  = Sieger 'Originellste Gemeinsamkeit'
+      photo        = Sieger 'Originellstes Foto'
+    Nur waehrend der Siegerehrung (Phase ceremony) sinnvoll."""
+    _require_admin(token)
+    if cat not in ("none", "commonality", "photo"):
+        raise HTTPException(status_code=400, detail="Unbekannte Kategorie")
+    if _current_phase() != "ceremony":
+        setting_set("ceremony_active", "1")  # falls noch nicht in der Show: hineinschalten
+        setting_set("winners_revealed", "1")
+        if setting_get("comp_state", "live") != "ended":
+            _end_competition()
+    setting_set("ceremony_reveal", cat)
+    return {"ok": True, "reveal": cat, "winners": _current_winners()}
+
+
 @app.get("/api/ceremony")
 def ceremony_get():
     return {
@@ -496,6 +519,7 @@ def ceremony_get():
         "state": setting_get("comp_state", "live"),
         "active": setting_get("ceremony_active", "0") == "1",
         "revealed": setting_get("winners_revealed", "0") == "1",
+        "reveal": setting_get("ceremony_reveal", "none"),
         "winners": _current_winners(),
     }
 
@@ -515,6 +539,8 @@ def admin_standings(token: str = Query("")):
         "state": setting_get("comp_state", "live"),
         "active": setting_get("ceremony_active", "0") == "1",
         "revealed": setting_get("winners_revealed", "0") == "1",
+        "reveal": setting_get("ceremony_reveal", "none"),
+        "winners": _current_winners(),
         "scored": int(scored), "total": db_count(),
         "commonalities": [{"id": r[0], "text": r[1], "url": f"/photo/{r[0]}", "score": r[2]} for r in comm],
         "photos": [{"id": r[0], "desc": r[1] or "", "url": f"/photo/{r[0]}", "score": r[2]} for r in phot],

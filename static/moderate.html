@@ -31,6 +31,23 @@
   #cer-state{font-weight:700}
   .cer-head{margin-bottom:4px}
   .cer-sub{margin-top:8px}
+
+  /* Manuelle Sieger-Show: nur sichtbar, wenn Phase 3 (ceremony) aktiv */
+  #cer-reveal{margin-top:12px; border-top:1px solid #2b3546; padding-top:12px}
+  #cer-reveal .rv-intro{font-size:13px; color:#9ca3af; margin-bottom:10px}
+  .rv-step{display:flex; align-items:center; gap:10px; width:100%; text-align:left; border:0; cursor:pointer;
+    background:#283142; color:#fff; border-radius:13px; padding:11px 13px; margin-bottom:9px; font:inherit}
+  .rv-step:active{transform:scale(.99)}
+  .rv-step.active{background:linear-gradient(135deg,#1f6b4d,#2e9c70); color:#fff}
+  .rv-step.done{opacity:.55}
+  .rv-step img{width:42px; height:42px; object-fit:cover; border-radius:9px; flex:0 0 auto; background:#000}
+  .rv-step .rv-txt{flex:1; min-width:0}
+  .rv-step .rv-title{font-weight:800; font-size:14px}
+  .rv-step .rv-hint{font-size:12px; opacity:.85; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px}
+  .rv-step .rv-state{flex:0 0 auto; font-size:11px; font-weight:800; opacity:.8}
+  #rv-finish{width:100%; background:linear-gradient(135deg,#c8772f,#e0a04a); color:#0a0d14; font-weight:800;
+    border:0; border-radius:13px; padding:13px; font-size:15px; cursor:pointer; margin-top:4px}
+  #rv-finish:active{transform:scale(.99)}
   .standings{margin-top:12px; border-top:1px solid #232c3a; padding-top:10px}
   .standings summary{cursor:pointer; font-weight:700; font-size:14px; color:#e0a04a}
   .st-row{display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #1c2430}
@@ -81,10 +98,26 @@
       <div class="cer-phases">
         <button class="btn phase-btn" data-phase="running">1 · Wettbewerb läuft</button>
         <button class="btn phase-btn" data-phase="waiting">2 · Beendet — Siegerehrung folgt</button>
-        <button class="btn phase-btn" data-phase="ceremony">3 · Siegerehrung läuft (Sieger-Show)</button>
+        <button class="btn phase-btn" data-phase="ceremony">3 · Siegerehrung starten</button>
         <button class="btn phase-btn" data-phase="done">4 · Beendet — Sieger markiert</button>
       </div>
       <div class="muted cer-sub" id="cer-info"></div>
+
+      <!-- Manuelle Sieger-Show: erscheint nur in Phase 3 -->
+      <div id="cer-reveal" class="hidden">
+        <div class="rv-intro">Nacheinander enthüllen. Beim Klick startet der 5-Sek-Countdown auf dem TV, dann erscheint das Siegerfoto und <b>bleibt stehen</b>, bis du den nächsten Schritt klickst.</div>
+        <button class="rv-step" id="rv-commonality">
+          <img id="rv-comm-img" alt="" />
+          <span class="rv-txt"><span class="rv-title">▶ Schritt 1: Gemeinsamkeit enthüllen</span><span class="rv-hint" id="rv-comm-hint"></span></span>
+          <span class="rv-state" id="rv-comm-state"></span>
+        </button>
+        <button class="rv-step" id="rv-photo">
+          <img id="rv-photo-img" alt="" />
+          <span class="rv-txt"><span class="rv-title">▶ Schritt 2: Lustigstes Foto enthüllen</span><span class="rv-hint" id="rv-photo-hint"></span></span>
+          <span class="rv-state" id="rv-photo-state"></span>
+        </button>
+        <button id="rv-finish">✓ Siegerehrung beenden → Diashow läuft weiter</button>
+      </div>
       <details class="standings" id="standings">
         <summary>Aktuelle Wertung ansehen / korrigieren</summary>
         <div class="muted" style="margin:8px 0 4px">🏆 Gemeinsamkeiten (Score 0–100):</div>
@@ -142,14 +175,38 @@ function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'
 async function cerRefresh(){
   try{
     const c = await (await fetch('/api/admin/standings?token='+q(TOKEN))).json();
-    const labels = {running:'Wettbewerb läuft', waiting:'beendet — Siegerehrung folgt', ceremony:'Siegerehrung läuft auf dem TV ▶', done:'beendet — Sieger in der Diashow markiert'};
+    const labels = {running:'Wettbewerb läuft', waiting:'beendet — Siegerehrung folgt', ceremony:'Siegerehrung — Sieger unten enthüllen ▶', done:'beendet — Sieger in der Diashow markiert'};
     $('#cer-state').textContent = '· ' + (labels[c.phase] || '');
     $('#cer-state').style.color = c.phase==='ceremony' ? '#34d399' : (c.phase==='running' ? '#9ca3af' : '#e0a04a');
     document.querySelectorAll('.phase-btn').forEach(b=> b.classList.toggle('active', b.dataset.phase===c.phase));
     $('#cer-info').textContent = `${c.scored}/${c.total} Fotos von der KI bewertet`;
+    renderReveal(c);
     renderStandings(c);
   }catch(e){}
 }
+function renderReveal(c){
+  const panel = $('#cer-reveal');
+  const on = c.phase === 'ceremony';
+  panel.classList.toggle('hidden', !on);
+  if(!on) return;
+  const w = c.winners || {}, reveal = c.reveal || 'none';
+  const cw = w.commonality, pw = w.photo;
+  $('#rv-comm-img').src  = cw ? cw.url : '';  $('#rv-comm-img').style.visibility  = cw ? 'visible' : 'hidden';
+  $('#rv-photo-img').src = pw ? pw.url : '';  $('#rv-photo-img').style.visibility = pw ? 'visible' : 'hidden';
+  $('#rv-comm-hint').textContent  = cw ? '„'+(cw.text||'')+'"' : 'noch kein Sieger ermittelt';
+  $('#rv-photo-hint').textContent = pw ? (pw.comment ? '„'+pw.comment+'"' : (pw.desc||'(ohne Kommentar)')) : 'noch kein Sieger ermittelt';
+  $('#rv-commonality').classList.toggle('active', reveal==='commonality');
+  $('#rv-photo').classList.toggle('active', reveal==='photo');
+  $('#rv-comm-state').textContent  = reveal==='commonality' ? 'läuft ▶' : '';
+  $('#rv-photo-state').textContent = reveal==='photo' ? 'läuft ▶' : '';
+}
+async function setReveal(cat){ await fetch('/api/ceremony/reveal?cat='+cat+'&token='+q(TOKEN), {method:'POST'}); cerRefresh(); }
+$('#rv-commonality').addEventListener('click', ()=> setReveal('commonality'));
+$('#rv-photo').addEventListener('click', ()=> setReveal('photo'));
+$('#rv-finish').addEventListener('click', async ()=>{
+  if(!confirm('Siegerehrung beenden? Die Diashow läuft dann weiter und markiert die Siegerfotos mit Badge.')) return;
+  await setPhase('done');
+});
 function scoreRow(item, field, rank){
   const el = document.createElement('div'); el.className = 'st-row';
   const label = field === 'comm_score' ? (item.text || '') : (item.desc || '—');

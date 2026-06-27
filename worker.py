@@ -43,7 +43,7 @@ VERTEX_PROJECT = (_SA_INFO.get("project_id") or os.environ.get("VERTEX_PROJECT_I
 VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "europe-west3").strip()
 VERTEX_MODEL = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash").strip()
 SCORE_BATCH = int(os.environ.get("SCORE_BATCH", "15"))
-SCORING_VERSION = "3"   # bei Prompt-Aenderung erhoehen -> kommentierte Fotos werden 1x neu bewertet
+SCORING_VERSION = "4"   # bei Prompt-Aenderung erhoehen -> kommentierte Fotos werden 1x neu bewertet
 _score_fails: dict = {}  # id -> Fehlversuche; nach 3x aufgeben, damit ein Problembild den Batch nicht blockiert
 SCORING_ON = bool(VERTEX_SA_JSON and VERTEX_PROJECT)
 
@@ -57,15 +57,18 @@ _SCORE_PROMPT = (
     "photo_score = wie originell/witzig/besonders das FOTO ist "
     "(0815-Schnappschuss ~40, kreativ/lustig/ueberraschend ~80+). "
     "Das Kommentarfeld ist PRIMAER fuer die GEMEINSAMKEIT gedacht (es kann aber auch mal nur "
-    "ein Gruss/Spruch sein). is_commonality = true, wenn der Text IRGENDEINE Gemeinsamkeit oder "
-    "etwas Geteiltes zwischen Personen ausdrueckt — auch ganz einfach/kurz formuliert "
-    "(z.B. 'Wir spielen Fussball', 'beide blaue Augen', 'waren zusammen auf dem Berg', "
-    "'wir fahren Mercedes', 'kennen uns vom Studium', 'beide aus dem selben Verein'). "
-    "Sei GROSSZUEGIG — im Zweifel true. NUR false bei KLAREN Nicht-Gemeinsamkeiten: reine "
+    "ein Gruss/Spruch sein). Beurteile INHALTLICH/semantisch — verstehe, was gemeint ist, "
+    "und gehe NICHT nach Stichwoertern oder festen Mustern vor. "
+    "is_commonality = true, wenn der Text sinngemaess eine Gemeinsamkeit, ein gemeinsames "
+    "Erlebnis oder etwas Geteiltes zwischen Personen ausdrueckt — auch knapp, umgangssprachlich "
+    "oder mit Tippfehlern formuliert (die Beispiele dienen nur dem Verstaendnis, nicht als "
+    "Wortliste: 'Wir spielen Fussball', 'beide blaue Augen', 'waren zusammen auf dem Berg', "
+    "'wir fahren Mercedes', 'kennen uns vom Studium'). Im Zweifel true. "
+    "is_commonality = false nur, wenn inhaltlich KEINE Gemeinsamkeit gemeint ist: reine "
     "Gruesse/Wuensche ('Alles Gute', 'Tolle Party'), Ein-Personen-Bildunterschriften "
     "('Ich am Buffet'), oder reine Emojis/Ausrufe ('Vamos', '🔪'). "
-    "comm_score = Originalitaet der Gemeinsamkeit (banal ~30, spezifisch/ueberraschend ~80+) "
-    "WENN is_commonality true, sonst null. "
+    "comm_score = wie originell/ueberraschend die Gemeinsamkeit ist — deine eigene Einschaetzung "
+    "(banal/erwartbar ~30, spezifisch/witzig/ueberraschend ~80+) WENN is_commonality true, sonst null. "
     "Text im Kommentarfeld: {COMMENT}"
 )
 

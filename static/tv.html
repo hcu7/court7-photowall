@@ -220,9 +220,9 @@ let queue = [];                // frische IDs -> Spotlight
 let idx = -1;
 let initialized = false;
 let shownSinceAd = 0, adIdx = 0;
-let ceremony = { active:false, winners:{} };   // Sieger-Show
-let cerSlides = [], cerIdx = 0;
-let cerFirstPass = true;   // Countdown nur beim 1. Durchlauf einer Sieger-Show
+let ceremony = { active:false, reveal:'none', winners:{} };   // Sieger-Show (moderator-gesteuert)
+let cerShown = null;   // welche Kategorie aktuell auf dem TV steht (none/commonality/photo)
+let cerTarget = null;  // Kategorie, die gerade enthuellt wird (fuer Abbruch bei Wechsel)
 
 const layers = [
   { root:$('#layerA'), bg:$('#layerA .bg'), fg:$('#layerA .fg') },
@@ -332,72 +332,77 @@ function setEmpty(isEmpty){
   $('#brand-tr').style.display = isEmpty ? 'none' : 'block';
 }
 
-function buildCerSlides(){
-  const w = ceremony.winners || {}; const s = [];
-  // Pro Sieger: 5s-Countdown (mit Hinweis) -> Foto sichtbar + Text darunter -> Foto nochmal groß.
-  const add = (kicker, url, text) => {
-    if(cerFirstPass) s.push({type:'count', kicker});   // Countdown nur beim 1. Durchlauf
-    s.push({type:'reveal', kicker, url, text});
-    s.push({type:'big',    url});
-  };
-  if(w.commonality) add('Originellste Gemeinsamkeit', w.commonality.url, '„'+w.commonality.text+'"');
-  if(w.photo){
-    // KI-Beschreibung NICHT auf dem TV zeigen — stattdessen den Kommentar des Bildes (falls vorhanden).
-    const c = (meta.get(w.photo.id) || '').trim();
-    add('Originellstes Foto des Abends', w.photo.url, c ? '„'+c+'"' : '');
-  }
-  if(!s.length) s.push({type:'wait'});
-  return s;
-}
-
 function cerMode(m){ const c = $('#ceremony'); c.classList.remove('reveal','big'); if(m) c.classList.add(m); }
 
-async function cerSleep(ms){ for(let t=0; t<ms && ceremony.active; t+=200){ await sleep(200); } }  // bricht bei Phasenwechsel sofort ab
+// bricht ab bei Phasenende ODER wenn der Moderator inzwischen eine andere Kategorie gewählt hat
+async function cerSleep(ms){ for(let t=0; t<ms && ceremony.active && ceremony.reveal===cerTarget; t+=200){ await sleep(200); } }
+function cerLive(){ return ceremony.active && ceremony.reveal===cerTarget; }
 
-async function ceremonyTick(){
-  if(cerSlides.length && cerIdx >= cerSlides.length) cerFirstPass = false;  // ab 2. Durchlauf kein Countdown
-  if(!cerSlides.length || cerIdx >= cerSlides.length){ cerSlides = buildCerSlides(); cerIdx = 0; }
-  const sl = cerSlides[cerIdx++];
+// Wartescreen: vor dem ersten Klick des Moderators.
+function cerIdle(){
+  cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'flex';
+  $('#cer-kicker').textContent = '🏆 Siegerehrung';
+  $('#cer-count').textContent = '';
+  $('#cer-big').textContent = 'Gleich werden die Sieger gekürt';
+  $('#cer-sub').textContent = 'Trommelwirbel … 🥁';
+}
+
+// Eine Kategorie enthüllen: 5s-Countdown (mit Hinweis) -> Foto + Kommentar darunter -> bleibt stehen.
+// gibt true zurück, wenn die Kategorie „erledigt" ist (Sieger gezeigt oder Wartescreen);
+// false, wenn (noch) kein Sieger feststeht -> ceremonyStep versucht es gleich erneut.
+async function cerReveal(target){
+  cerTarget = target;
   $('#ceremony').classList.remove('hidden');
-
-  if(sl.type === 'wait'){
+  if(target === 'none'){ cerIdle(); return true; }
+  const w = ceremony.winners || {};
+  const win = target === 'commonality' ? w.commonality : w.photo;
+  const kicker = target === 'commonality' ? 'Originellste Gemeinsamkeit' : 'Originellstes Foto des Abends';
+  if(!win){   // noch kein Sieger ermittelt -> Wartehinweis, NICHT als gezeigt merken
     cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'flex';
-    $('#cer-kicker').textContent = '🏆 Sieger-Show'; $('#cer-count').textContent = '';
-    $('#cer-big').textContent = 'Sieger werden ermittelt …';
-    $('#cer-sub').textContent = 'Sobald genug Fotos von der KI bewertet sind.';
-    await cerSleep(4000); return;
+    $('#cer-kicker').textContent = '🏆 ' + kicker;
+    $('#cer-count').textContent = '';
+    $('#cer-big').textContent = 'Sieger wird noch ermittelt …';
+    $('#cer-sub').textContent = 'Sobald die KI genug Fotos bewertet hat.';
+    return false;
   }
-
-  if(sl.type === 'count'){
-    cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'flex';
-    $('#cer-kicker').textContent = '🏆 Gleich: ' + sl.kicker;
-    $('#cer-big').textContent = ''; $('#cer-sub').textContent = '';
-    const el = $('#cer-count');
-    for(let n = 5; n >= 1 && ceremony.active; n--){
-      el.textContent = n; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = 'cpop .85s ease';
-      await cerSleep(1000);
-    }
-    el.textContent = ''; return;
+  // Caption-Text: Gemeinsamkeit -> der Kommentar-Text; Foto -> Kommentar des Bildes (falls vorhanden).
+  let text = '';
+  if(target === 'commonality') text = win.text ? '„' + win.text + '"' : '';
+  else { const c = (meta.get(win.id) || win.comment || '').trim(); text = c ? '„' + c + '"' : ''; }
+  // 5-Sekunden-Countdown mit Hinweis, welche Kategorie kommt.
+  cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'flex';
+  $('#cer-kicker').textContent = '🏆 Gleich: ' + kicker;
+  $('#cer-big').textContent = ''; $('#cer-sub').textContent = '';
+  const el = $('#cer-count');
+  for(let n = 5; n >= 1 && cerLive(); n--){
+    el.textContent = n; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = 'cpop .85s ease';
+    await cerSleep(1000);
   }
-
-  // 'reveal' | 'big' -> Foto IMMER sichtbar (auch bei der Gemeinsamkeit)
-  const fgU = sl.url, bgU = sl.url + '?w=400';   // Anzeige-Foto + vorab erzeugter Blur-BG
+  el.textContent = '';
+  if(!cerLive()) return false;   // Moderator hat inzwischen gewechselt / Show beendet
+  // Foto enthüllen — bleibt stehen, bis der Moderator den nächsten Schritt klickt.
+  const fgU = win.url, bgU = win.url + '?w=400';
   await decode(fgU);
+  if(!cerLive()) return false;
   $('#cer-card').style.display = 'none'; $('#cer-photo').style.display = 'block';
   $('#cer-bg').style.backgroundImage = `url("${bgU}")`;
   $('#cer-fg').style.backgroundImage = `url("${fgU}")`;
-  if(sl.type === 'reveal'){
-    cerMode('reveal');
-    $('#cer-cap-kicker').textContent = '🏆 ' + sl.kicker;
-    $('#cer-cap-text').textContent = sl.text || '';
-    await cerSleep(7000);
-  } else {
-    cerMode('big');
-    await cerSleep(4000);
-  }
+  cerMode('reveal');
+  $('#cer-cap-kicker').textContent = '🏆 ' + kicker;
+  $('#cer-cap-text').textContent = text;
+  return true;
 }
 
-function ceremonyHide(){ $('#ceremony').classList.add('hidden'); cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'none'; cerSlides = []; cerIdx = 0; }
+// Pro loop()-Durchlauf: nur dann etwas tun, wenn der Moderator eine NEUE Kategorie gewählt hat.
+async function ceremonyStep(){
+  const target = ceremony.reveal || 'none';
+  if(target === cerShown){ await sleep(300); return; }   // nichts Neues -> Bild stehen lassen
+  const settled = await cerReveal(target);
+  if(settled && (cerLive() || target === 'none')) cerShown = target;  // gezeigt -> nicht erneut abspielen
+  else await sleep(600);   // (noch) kein Sieger / abgebrochen -> kurz warten statt heißlaufen
+}
+
+function ceremonyHide(){ $('#ceremony').classList.add('hidden'); cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'none'; cerShown = null; cerTarget = null; }
 
 // Vorladen: nächste Bilder im Hintergrund dekodieren -> Übergänge sind instant, Diashow stockt nicht.
 const _preCache = new Map();   // id -> Image (hält den Browser-Cache warm)
@@ -420,7 +425,7 @@ function pickNext(){
 
 async function loop(){
   while(true){
-    if(ceremony.active){ await ceremonyTick(); continue; }
+    if(ceremony.active){ await ceremonyStep(); continue; }
     if(!$('#ceremony').classList.contains('hidden')) ceremonyHide();
     const pick = pickNext();
     if(!pick){ setEmpty(true); await sleep(800); continue; }
@@ -472,8 +477,8 @@ async function pollCeremony(){
   try{
     const wasActive = ceremony.active;
     ceremony = await (await fetch('/api/ceremony')).json();
-    // Show (neu) gestartet -> Countdown wieder ab dem 1. Durchlauf zeigen.
-    if(ceremony.active && !wasActive){ cerFirstPass = true; cerSlides = []; cerIdx = 0; }
+    // Show frisch gestartet -> auf Wartescreen beginnen.
+    if(ceremony.active && !wasActive){ cerShown = null; cerTarget = null; }
     // Banner "Wettbewerb beendet – Siegerehrung folgt": nur solange beendet + Sieger noch NICHT gezeigt.
     const eb = $('#endbanner');
     if(eb) eb.classList.toggle('show', ceremony.state === 'ended' && !ceremony.revealed && !ceremony.active);
@@ -485,7 +490,7 @@ async function pollCeremony(){
   await pollCeremony();
   loop();
   setInterval(poll, POLL_MS);
-  setInterval(pollCeremony, 3000);
+  setInterval(pollCeremony, 2000);
 })();
 
 document.body.addEventListener('click', ()=>{ const el=document.documentElement; if(el.requestFullscreen) el.requestFullscreen().catch(()=>{}); });
