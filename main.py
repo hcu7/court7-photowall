@@ -505,10 +505,10 @@ def admin_standings(token: str = Query("")):
     _require_admin(token)
     comm = _exec(
         f"SELECT id, comment, comm_score FROM photos WHERE hidden={_FALSE} AND comment<>'' "
-        f"AND comm_score IS NOT NULL ORDER BY comm_score DESC, sort ASC LIMIT 8", (), "all") or []
+        f"AND comm_score IS NOT NULL ORDER BY comm_score DESC, sort ASC LIMIT 60", (), "all") or []
     phot = _exec(
         f"SELECT id, photo_desc, photo_score FROM photos WHERE hidden={_FALSE} "
-        f"AND photo_score IS NOT NULL ORDER BY photo_score DESC, sort ASC LIMIT 8", (), "all") or []
+        f"AND photo_score IS NOT NULL ORDER BY photo_score DESC, sort ASC LIMIT 60", (), "all") or []
     scored = (_exec(f"SELECT COUNT(*) FROM photos WHERE hidden={_FALSE} AND scored={_TRUE}", (), "one") or [0])[0]
     return {
         "phase": _current_phase(),

@@ -43,7 +43,7 @@ VERTEX_PROJECT = (_SA_INFO.get("project_id") or os.environ.get("VERTEX_PROJECT_I
 VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "europe-west3").strip()
 VERTEX_MODEL = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash").strip()
 SCORE_BATCH = int(os.environ.get("SCORE_BATCH", "15"))
-SCORING_VERSION = "2"   # bei Prompt-Aenderung erhoehen -> kommentierte Fotos werden 1x neu bewertet
+SCORING_VERSION = "3"   # bei Prompt-Aenderung erhoehen -> kommentierte Fotos werden 1x neu bewertet
 _score_fails: dict = {}  # id -> Fehlversuche; nach 3x aufgeben, damit ein Problembild den Batch nicht blockiert
 SCORING_ON = bool(VERTEX_SA_JSON and VERTEX_PROJECT)
 
@@ -56,13 +56,14 @@ _SCORE_PROMPT = (
     '"comm_score": <0-100 ganzzahlig oder null>}. '
     "photo_score = wie originell/witzig/besonders das FOTO ist "
     "(0815-Schnappschuss ~40, kreativ/lustig/ueberraschend ~80+). "
-    "Das Kommentarfeld wird MAL fuer eine Gemeinsamkeit, MAL nur fuer einen normalen "
-    "Kommentar/Gruss genutzt. is_commonality = true NUR wenn der Text tatsaechlich eine "
-    "GEMEINSAMKEIT zweier Personen beschreibt (etwas das beide teilen/gemeinsam haben, "
-    "z.B. 'Wir waren beide 2009 in Australien', 'haben am selben Tag Geburtstag', "
-    "'beide hassen Koriander'). false bei normalen Kommentaren/Bildunterschriften/Gruessen "
-    "('Vamos', 'Tolle Party', 'Ich und meine Curva', 'Vielen Dank fuer die Blumen', reine Emojis). "
-    "Im Zweifel false. "
+    "Das Kommentarfeld ist PRIMAER fuer die GEMEINSAMKEIT gedacht (es kann aber auch mal nur "
+    "ein Gruss/Spruch sein). is_commonality = true, wenn der Text IRGENDEINE Gemeinsamkeit oder "
+    "etwas Geteiltes zwischen Personen ausdrueckt — auch ganz einfach/kurz formuliert "
+    "(z.B. 'Wir spielen Fussball', 'beide blaue Augen', 'waren zusammen auf dem Berg', "
+    "'wir fahren Mercedes', 'kennen uns vom Studium', 'beide aus dem selben Verein'). "
+    "Sei GROSSZUEGIG — im Zweifel true. NUR false bei KLAREN Nicht-Gemeinsamkeiten: reine "
+    "Gruesse/Wuensche ('Alles Gute', 'Tolle Party'), Ein-Personen-Bildunterschriften "
+    "('Ich am Buffet'), oder reine Emojis/Ausrufe ('Vamos', '🔪'). "
     "comm_score = Originalitaet der Gemeinsamkeit (banal ~30, spezifisch/ueberraschend ~80+) "
     "WENN is_commonality true, sonst null. "
     "Text im Kommentarfeld: {COMMENT}"
