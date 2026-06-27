@@ -454,6 +454,7 @@ def _end_competition():
 #   done     = beendet, Sieger in der Diashow markiert (weiter hochladbar)
 def _set_phase(phase: str):
     setting_set("ceremony_reveal", "none")  # jeder Phasenwechsel setzt die Sieger-Show auf den Wartescreen zurueck
+    setting_set("winners_loop", "0")        # nur die Sieger-Loop-Phase schaltet ihn ein
     if phase == "running":
         setting_set("comp_state", "live")
         setting_set("ceremony_active", "0")
@@ -471,6 +472,10 @@ def _set_phase(phase: str):
     elif phase == "done":
         setting_set("ceremony_active", "0")
         setting_set("winners_revealed", "1")
+    elif phase == "winners":  # nur die beiden Sieger laufen als Loop auf dem TV
+        setting_set("ceremony_active", "0")
+        setting_set("winners_revealed", "1")
+        setting_set("winners_loop", "1")
 
 
 def _current_phase() -> str:
@@ -478,6 +483,8 @@ def _current_phase() -> str:
         return "running"
     if setting_get("ceremony_active", "0") == "1":
         return "ceremony"
+    if setting_get("winners_loop", "0") == "1":
+        return "winners"
     if setting_get("winners_revealed", "0") == "1":
         return "done"
     return "waiting"
@@ -486,7 +493,7 @@ def _current_phase() -> str:
 @app.post("/api/ceremony/phase")
 def ceremony_phase(phase: str = Query(""), token: str = Query("")):
     _require_admin(token)
-    if phase not in ("running", "waiting", "ceremony", "done"):
+    if phase not in ("running", "waiting", "ceremony", "done", "winners"):
         raise HTTPException(status_code=400, detail="Unbekannte Phase")
     _set_phase(phase)
     return {"ok": True, "phase": _current_phase(), "winners": _current_winners()}

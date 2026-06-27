@@ -199,6 +199,7 @@ let SPOTLIGHT = 6;
 const POLL_MS = 4000;
 const AD_EVERY = 10;     // alle 10 Fotos eine Werbung
 const AD_SECONDS = 6;    // Werbung 6 Sekunden einblenden
+const WINNER_DWELL = 8;  // Sieger-Loop: Standzeit pro Sieger (Sekunden)
 
 // COURT7-Produkte für die Werbung (Bilder liegen lokal in /static/gear).
 // WICHTIG: AD-IN = "Serve & Chill"-Serie = Crossover (Platz + Alltag) -> KEINE
@@ -223,6 +224,7 @@ let shownSinceAd = 0, adIdx = 0;
 let ceremony = { active:false, reveal:'none', winners:{} };   // Sieger-Show (moderator-gesteuert)
 let cerShown = null;   // welche Kategorie aktuell auf dem TV steht (none/commonality/photo)
 let cerTarget = null;  // Kategorie, die gerade enthuellt wird (fuer Abbruch bei Wechsel)
+let winIdx = 0;        // Sieger-Loop: aktueller Index
 
 const layers = [
   { root:$('#layerA'), bg:$('#layerA .bg'), fg:$('#layerA .fg') },
@@ -404,6 +406,48 @@ async function ceremonyStep(){
 
 function ceremonyHide(){ $('#ceremony').classList.add('hidden'); cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'none'; cerShown = null; cerTarget = null; }
 
+// ---- Sieger-Loop: nur die beiden Gewinner laufen automatisch durch -------------
+function winnerList(){
+  const w = ceremony.winners || {}; const out = [];
+  if(w.commonality){
+    out.push({ win:w.commonality, kicker:'Originellste Gemeinsamkeit',
+      text: w.commonality.text ? '„' + w.commonality.text + '"' : '' });
+  }
+  if(w.photo){
+    // Foto: Kommentar des Bildes (falls vorhanden) — NICHT die KI-Beschreibung.
+    const c = (meta.get(w.photo.id) || w.photo.comment || '').trim();
+    out.push({ win:w.photo, kicker:'Originellstes Foto des Abends',
+      text: c ? '„' + c + '"' : '' });
+  }
+  return out;
+}
+async function winnersStep(){
+  const list = winnerList();
+  if(!list.length){   // noch keine Sieger -> Hinweis (Overlay zeigen, dann ruhig warten)
+    $('#ceremony').classList.remove('hidden');
+    cerMode(''); $('#cer-photo').style.display = 'none'; $('#cer-card').style.display = 'flex';
+    $('#cer-kicker').textContent = '🏆 Sieger';
+    $('#cer-count').textContent = '';
+    $('#cer-big').textContent = 'Noch keine Sieger ermittelt …';
+    $('#cer-sub').textContent = 'Sobald die KI genug Fotos bewertet hat.';
+    for(let t=0; t<2500 && ceremony.phase==='winners'; t+=250){ await sleep(250); }  // kein Dauer-Re-Render
+    return;
+  }
+  const item = list[winIdx % list.length];
+  const fgU = item.win.url, bgU = item.win.url + '?w=400';
+  await decode(fgU);                            // ERST dekodieren ...
+  if(ceremony.phase !== 'winners') return;      // Phase mitten im Decode gewechselt -> Overlay nie gezeigt
+  winIdx++;                                      // erst NACH erfolgreichem Decode weiterzählen
+  $('#ceremony').classList.remove('hidden');    // ... DANN Overlay zeigen (kein Grün-Flash, kein Hänger)
+  $('#cer-card').style.display = 'none'; $('#cer-photo').style.display = 'block';
+  $('#cer-bg').style.backgroundImage = `url("${bgU}")`;
+  $('#cer-fg').style.backgroundImage = `url("${fgU}")`;
+  cerMode('reveal');
+  $('#cer-cap-kicker').textContent = '🏆 ' + item.kicker;
+  $('#cer-cap-text').textContent = item.text;
+  for(let t=0; t<WINNER_DWELL*1000 && ceremony.phase==='winners'; t+=200){ await sleep(200); }  // abbrechbar
+}
+
 // Vorladen: nächste Bilder im Hintergrund dekodieren -> Übergänge sind instant, Diashow stockt nicht.
 const _preCache = new Map();   // id -> Image (hält den Browser-Cache warm)
 function preload(id){
@@ -425,7 +469,8 @@ function pickNext(){
 
 async function loop(){
   while(true){
-    if(ceremony.active){ await ceremonyStep(); continue; }
+    if(ceremony.active){ await ceremonyStep(); continue; }           // manuelle Siegerehrung (Phase ceremony)
+    if(ceremony.phase === 'winners'){ await winnersStep(); continue; } // Sieger-Loop (nur beide Gewinner)
     if(!$('#ceremony').classList.contains('hidden')) ceremonyHide();
     const pick = pickNext();
     if(!pick){ setEmpty(true); await sleep(800); continue; }
@@ -476,9 +521,12 @@ async function poll(){
 async function pollCeremony(){
   try{
     const wasActive = ceremony.active;
+    const prevPhase = ceremony.phase;
     ceremony = await (await fetch('/api/ceremony')).json();
     // Show frisch gestartet -> auf Wartescreen beginnen.
     if(ceremony.active && !wasActive){ cerShown = null; cerTarget = null; }
+    // Sieger-Loop frisch betreten -> immer beim 1. Gewinner anfangen.
+    if(ceremony.phase === 'winners' && prevPhase !== 'winners'){ winIdx = 0; }
     // Banner "Wettbewerb beendet – Siegerehrung folgt": nur solange beendet + Sieger noch NICHT gezeigt.
     const eb = $('#endbanner');
     if(eb) eb.classList.toggle('show', ceremony.state === 'ended' && !ceremony.revealed && !ceremony.active);

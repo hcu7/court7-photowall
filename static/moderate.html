@@ -99,7 +99,8 @@
         <button class="btn phase-btn" data-phase="running">1 · Wettbewerb läuft</button>
         <button class="btn phase-btn" data-phase="waiting">2 · Beendet — Siegerehrung folgt</button>
         <button class="btn phase-btn" data-phase="ceremony">3 · Siegerehrung starten</button>
-        <button class="btn phase-btn" data-phase="done">4 · Beendet — Sieger markiert</button>
+        <button class="btn phase-btn" data-phase="done">4 · Beendet — Sieger in Diashow markiert</button>
+        <button class="btn phase-btn" data-phase="winners">5 · Nur Sieger-Loop (beide Gewinner)</button>
       </div>
       <div class="muted cer-sub" id="cer-info"></div>
 
@@ -175,7 +176,7 @@ function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'
 async function cerRefresh(){
   try{
     const c = await (await fetch('/api/admin/standings?token='+q(TOKEN))).json();
-    const labels = {running:'Wettbewerb läuft', waiting:'beendet — Siegerehrung folgt', ceremony:'Siegerehrung — Sieger unten enthüllen ▶', done:'beendet — Sieger in der Diashow markiert'};
+    const labels = {running:'Wettbewerb läuft', waiting:'beendet — Siegerehrung folgt', ceremony:'Siegerehrung — Sieger unten enthüllen ▶', done:'beendet — Sieger in der Diashow markiert', winners:'Sieger-Loop läuft auf dem TV 🏆'};
     $('#cer-state').textContent = '· ' + (labels[c.phase] || '');
     $('#cer-state').style.color = c.phase==='ceremony' ? '#34d399' : (c.phase==='running' ? '#9ca3af' : '#e0a04a');
     document.querySelectorAll('.phase-btn').forEach(b=> b.classList.toggle('active', b.dataset.phase===c.phase));
