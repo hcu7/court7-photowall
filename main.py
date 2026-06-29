@@ -92,8 +92,8 @@ PHASE_LABELS = {
     "werdersee": "Werdersee",
     "preparty": "Pre-Party",
     "auftritt": "Musikalische Einlage",
-    "party": "Die Party",
-    "breakfast": "Der Morgen danach",
+    "party": "Die lange Nacht",
+    "breakfast": "Frühstück im Grünen",
     "weitere": "Weitere",
 }
 
