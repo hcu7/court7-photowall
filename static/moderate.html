@@ -108,6 +108,7 @@
     <div class="bar">
       <span class="muted" id="status">…</span>
       <button class="btn" id="btn-refresh" style="margin-left:auto">↻ Aktualisieren</button>
+      <button class="btn" id="btn-dedupe" style="background:#3a4a6b">🧹 Duplikate</button>
       <button class="btn" id="btn-clear" style="background:#7f1d1d">🗑 Wall leeren</button>
     </div>
     <div class="ceremony">
@@ -172,6 +173,18 @@ async function unlock(t){
 $('#btn-unlock').addEventListener('click', ()=> unlock($('#pin').value.trim()));
 $('#pin').addEventListener('keydown', e=>{ if(e.key==='Enter') unlock($('#pin').value.trim()); });
 $('#btn-refresh').addEventListener('click', load);
+$('#btn-dedupe').addEventListener('click', async ()=>{
+  const b=$('#btn-dedupe'); const orig=b.textContent; b.textContent='… suche'; b.disabled=true;
+  try{
+    const dry = await (await fetch('/api/admin/dedupe?apply=0&token='+q(TOKEN), {method:'POST'})).json();
+    if(!dry.removed){ alert('Keine exakten Duplikate gefunden. 👍'); return; }
+    if(!confirm(`${dry.groups} Duplikat-Gruppe(n) gefunden.\n\n${dry.removed} doppelte Foto(s) werden vom Album entfernt (kommentarlose bevorzugt, je Gruppe bleibt eins).\n\nDie Fotos bleiben auf dem Server + im Drive-Backup gesichert. Entfernen?`)) return;
+    const res = await (await fetch('/api/admin/dedupe?apply=1&token='+q(TOKEN), {method:'POST'})).json();
+    alert(`${res.removed} Duplikat(e) entfernt.`);
+    load();
+  }catch(e){ alert('Fehler bei der Duplikat-Suche.'); }
+  finally{ b.textContent=orig; b.disabled=false; }
+});
 $('#btn-clear').addEventListener('click', async ()=>{
   if(!confirm('Neustart: ALLE Fotos von der Wall ausblenden und den Wettbewerb neu starten?\n\n(Die Fotos werden NICHT gelöscht — sie bleiben auf dem Server + im Drive-Backup gesichert.)')) return;
   const r = await fetch('/api/admin/clear?token='+q(TOKEN), {method:'POST'});

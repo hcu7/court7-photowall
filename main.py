@@ -445,6 +445,43 @@ def admin_clear(token: str = Query("")):
     return {"ok": True, "hidden": n}
 
 
+@app.post("/api/admin/dedupe")
+def admin_dedupe(token: str = Query(""), apply: int = Query(0)):
+    """Findet exakte Bild-Duplikate (byte-identische data) und blendet Ueberzaehlige aus.
+    Behaelt je Gruppe bevorzugt ein Foto MIT Kommentar (je distinktem Kommentar eins) und
+    blendet kommentarlose sowie identisch-kommentierte Doppel aus. Soft-Delete (bleibt in DB+Drive).
+    apply=0 -> nur zaehlen (Vorschau), apply=1 -> wirklich ausblenden."""
+    _require_admin(token)
+    rows = _exec(
+        f"SELECT id, data, comment FROM photos WHERE hidden={_FALSE} ORDER BY created ASC, id ASC",
+        (), "all",
+    ) or []
+    groups: dict = {}
+    for r in rows:
+        h = hashlib.sha256(bytes(r[1])).hexdigest()
+        groups.setdefault(h, []).append((r[0], (r[2] or "").strip()))
+    to_hide: list = []
+    dup_groups = 0
+    for items in groups.values():
+        if len(items) < 2:
+            continue
+        dup_groups += 1
+        kept: set = set()
+        if any(cm for _, cm in items):           # mind. ein Kommentar vorhanden
+            seen: set = set()
+            for pid, cm in items:                # je distinktem Kommentar genau eins behalten
+                if cm and cm not in seen:
+                    seen.add(cm)
+                    kept.add(pid)
+        else:
+            kept.add(items[0][0])                # alle kommentarlos -> aeltestes behalten
+        to_hide.extend(pid for pid, _ in items if pid not in kept)
+    if apply:
+        for pid in to_hide:
+            db_hide(pid)
+    return {"ok": True, "applied": bool(apply), "groups": dup_groups, "removed": len(to_hide)}
+
+
 @app.post("/api/photos/{pid}/hide")
 def hide_photo(pid: str, token: str = Query("")):
     _require_admin(token)
