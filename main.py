@@ -281,7 +281,8 @@ def _require_admin(token: str) -> None:
 
 # ---- Album-Zugang (Passwort, vom Admin gesetzt; Cookie-Session) -------------
 def _album_hash(pw: str) -> str:
-    return hashlib.sha256((ADMIN_TOKEN + ":" + (pw or "")).encode()).hexdigest()
+    # PBKDF2 mit ADMIN_TOKEN als Pepper/Salt -> Offline-Brute-Force erfordert zusaetzlich den Admin-Token.
+    return hashlib.pbkdf2_hmac("sha256", (pw or "").encode(), (ADMIN_TOKEN + ":antje-album").encode(), 100_000).hex()
 
 
 def _album_cookie_value() -> str:
@@ -683,8 +684,8 @@ def set_album_password(pw: str = Form(""), token: str = Query("")):
     """Admin setzt das Album-Passwort (gehasht in settings; Klartext landet nie im Repo/Log)."""
     _require_admin(token)
     pw = (pw or "").strip()
-    if len(pw) < 3:
-        raise HTTPException(status_code=400, detail="Passwort zu kurz (min. 3 Zeichen)")
+    if len(pw) < 6:
+        raise HTTPException(status_code=400, detail="Passwort zu kurz (min. 6 Zeichen)")
     setting_set("album_pw", _album_hash(pw))
     return {"ok": True}
 
@@ -757,10 +758,15 @@ def album_zip(request: Request, ids: str = Query(""), token: str = Query("")):
             pass
         raise HTTPException(status_code=500, detail="Zip fehlgeschlagen")
     fname = "Antje-60-Fotoalbum.zip" if sel is None else "Antje-60-Auswahl.zip"
-    return FileResponse(
-        tmp.name, media_type="application/zip", filename=fname,
-        background=BackgroundTask(lambda: os.path.exists(tmp.name) and os.remove(tmp.name)),
-    )
+
+    def _cleanup(p=tmp.name):
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+    return FileResponse(tmp.name, media_type="application/zip", filename=fname,
+                        background=BackgroundTask(_cleanup))
 
 
 # ---------------------------------------------------------------------------

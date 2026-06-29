@@ -225,8 +225,12 @@ $('#pw').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
 async function showApp(){
   $('#app').classList.remove('hidden');
   let data;
-  try{ data = await (await fetch('/api/album/photos')).json(); }
-  catch(e){ $('#loading').textContent = 'Konnte das Album nicht laden.'; return; }
+  try{
+    const r = await fetch('/api/album/photos');
+    if(r.status===401){ $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); return; }  // Sitzung abgelaufen
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    data = await r.json();
+  }catch(e){ $('#loading').textContent = 'Konnte das Album nicht laden.'; return; }
   $('#loading').classList.add('hidden');
   const order = (data.phases && data.phases.length) ? data.phases : PHASE_FALLBACK.map(k=>({key:k,label:k}));
   const labels = {}; order.forEach(p=> labels[p.key]=p.label);
@@ -261,6 +265,7 @@ async function showApp(){
       fig.innerHTML = `<span class="pick">✓</span><img loading="lazy" src="/photo/${p.id}?w=400" alt="">${cap}`;
       const img = fig.querySelector('img');
       img.addEventListener('load', ()=> spanItem(fig));
+      img.addEventListener('error', ()=>{ fig.style.display='none'; });  // fehlendes Bild: kein Masonry-Loch
       fig.addEventListener('click', ()=>{
         if(selectMode){ toggleSelect(fig); }
         else openLightbox(idx);

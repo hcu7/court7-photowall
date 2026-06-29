@@ -214,6 +214,10 @@ def _is_transient(e) -> bool:
     """Voruebergehende Vertex-/Netzfehler — die duerfen NICHT zum 3-Strike-Aufgeben zaehlen."""
     if isinstance(e, (requests.Timeout, requests.ConnectionError)):
         return True
+    # Abgeschnittenes/kaputtes JSON (z.B. Token-Limit-Edge-Case) ist meist voruebergehend ->
+    # naechsten Durchlauf erneut versuchen statt das Foto vorschnell aufzugeben.
+    if isinstance(e, json.JSONDecodeError):
+        return True
     resp = getattr(e, "response", None)
     return resp is not None and getattr(resp, "status_code", 0) in (429, 500, 502, 503, 504)
 
@@ -299,11 +303,16 @@ def run_categorization() -> int:
             n = _cat_fails.get(pid, 0) + 1
             _cat_fails[pid] = n
             print(f"[cat] error {pid} (Versuch {n}): {e}", flush=True)
-            if n >= 3:  # dauerhaft nicht klassifizierbar -> Fallback, damit es nicht ewig NULL bleibt
+            if n >= 3:  # dauerhaft nicht klassifizierbar -> 'weitere' (neutral), nicht faelschlich 'preparty'
                 with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
-                    c.execute("UPDATE photos SET category='preparty', cat_source='ai_fail' WHERE id=%s", (pid,))
+                    # gleicher Race-Guard wie beim Erfolg: NIE eine manuelle Wahl ueberschreiben
+                    c.execute(
+                        "UPDATE photos SET category='weitere', cat_source='ai_fail' WHERE id=%s "
+                        "AND (cat_source IS NULL OR cat_source IN ('ai','ai_fail'))",
+                        (pid,),
+                    )
                     c.commit()
-                print(f"[cat] {pid} nach {n} Versuchen Fallback -> preparty", flush=True)
+                print(f"[cat] {pid} nach {n} Versuchen Fallback -> weitere", flush=True)
             continue
         _cat_fails.pop(pid, None)
         with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:

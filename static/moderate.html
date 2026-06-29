@@ -218,7 +218,7 @@ function renderAlbumAdmin(data){
 }
 $('#btn-album-pw').addEventListener('click', async ()=>{
   const pw = $('#album-pw').value.trim();
-  if(pw.length < 3){ alert('Bitte ein Passwort mit mindestens 3 Zeichen.'); return; }
+  if(pw.length < 6){ alert('Bitte ein Passwort mit mindestens 6 Zeichen.'); return; }
   const fd = new FormData(); fd.append('pw', pw);
   const r = await fetch('/api/admin/album-password?token='+q(TOKEN), {method:'POST', body:fd});
   if(r.ok){ $('#album-pw').value=''; alert('Album-Passwort gesetzt. Gäste können sich damit einloggen.'); load(); }
@@ -316,12 +316,22 @@ function card(p){
 
 async function setCategory(el, cat){
   // sofort optisch umschalten (kein Bestätigen), dann persistieren
+  const prev = [...el.querySelectorAll('.cat-btn')].find(b=> b.classList.contains('active')) || null;
   el.querySelectorAll('.cat-btn').forEach(b=> b.classList.toggle('active', b.dataset.cat===cat));
   el.querySelector('.cat-label').innerHTML = 'Phase';
+  const out = el.querySelector('.saved'); out.style.color=''; out.textContent='';
   try{
     const r = await fetch('/api/photos/'+q(el.dataset.id)+'/category?cat='+q(cat)+'&token='+q(TOKEN), {method:'POST'});
-    if(!r.ok && r.status===401) relock();
-  }catch(e){}
+    if(r.status===401){ relock(); return; }
+    if(!r.ok) throw new Error();
+    out.textContent='Phase gespeichert ✓';
+    setTimeout(()=>{ if(out.textContent==='Phase gespeichert ✓'){ out.textContent=''; } }, 1400);
+  }catch(e){
+    // Fehlschlag: optische Auswahl zurücksetzen, damit UI und Server nicht auseinanderlaufen
+    el.querySelectorAll('.cat-btn').forEach(b=> b.classList.toggle('active', !!prev && b===prev));
+    out.style.color='#f87171'; out.textContent='Nicht gespeichert – nochmal tippen';
+    setTimeout(()=>{ out.textContent=''; out.style.color=''; }, 3000);
+  }
 }
 
 function cards(){ return [...$('#list').children]; }
