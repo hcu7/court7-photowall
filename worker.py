@@ -44,6 +44,13 @@ VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "europe-west3").strip()
 VERTEX_MODEL = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash").strip()
 SCORE_BATCH = int(os.environ.get("SCORE_BATCH", "15"))
 SCORING_VERSION = "4"   # bei Prompt-Aenderung erhoehen -> kommentierte Fotos werden 1x neu bewertet
+
+# --- KI-Phasen-Kategorisierung (Antjes 60.) ---
+CAT_BATCH = int(os.environ.get("CAT_BATCH", "80"))
+CATEGORIZE_VERSION = "1"   # erhoehen -> NICHT-manuelle Kategorien werden 1x neu bestimmt
+_cat_fails: dict = {}
+# Erlaubte Phasen-Keys (chronologische Reihenfolge des Abends)
+CATS = ("geburtstag", "werdersee", "preparty", "auftritt", "party", "breakfast")
 _score_fails: dict = {}  # id -> Fehlversuche; nach 3x aufgeben, damit ein Problembild den Batch nicht blockiert
 SCORING_ON = bool(VERTEX_SA_JSON and VERTEX_PROJECT)
 
@@ -70,6 +77,30 @@ _SCORE_PROMPT = (
     "comm_score = wie originell/ueberraschend die Gemeinsamkeit ist — deine eigene Einschaetzung "
     "(banal/erwartbar ~30, spezifisch/witzig/ueberraschend ~80+) WENN is_commonality true, sonst null. "
     "Text im Kommentarfeld: {COMMENT}"
+)
+
+_CAT_PROMPT = (
+    "Du ordnest ein Foto einer 60. Geburtstagsfeier GENAU EINER von 6 Phasen zu. "
+    "Beurteile rein anhand des Bildinhalts (Ort, Tageslicht/Dunkelheit, Aktivitaet). "
+    'Antworte NUR mit JSON: {"category": "<key>", "confidence": <0-100 ganzzahlig>}. '
+    "Erlaubte keys und ihre Bedeutung:\n"
+    "geburtstag = Der Geburtstag selbst (an der Weser / an einem FLUSS): Ufer-/Strand-Atmosphaere, "
+    "man sieht einen Fluss bzw. fliessendes Wasser, ODER ein klassischer Aussen-Tisch in einem Cafe. "
+    "Tagsueber, eher kleine Runde.\n"
+    "werdersee = Draussen auf gruener WIESE an einem SEE: Leute leicht/sommerlich bekleidet, spielen "
+    "Fussball/Volleyball oder liegen/sitzen in groesserer Gruppe auf der Wiese. Tagsueber.\n"
+    "preparty = Die Feier hat begonnen, im HAUS oder GARTEN, es ist noch HELL (Sonne scheint). Gaeste "
+    "stehen zusammen, stossen an, essen; auch helles Drinnen-Tanzen am fruehen Abend gehoert hierher.\n"
+    "auftritt = Kleine VORFUEHRUNG im Garten: zwei Personen mit KONTRABASS und GITARRE fuehren Stuecke auf, "
+    "es wird gesungen, die Gaeste schauen als Publikum zu.\n"
+    "party = LATE PARTY: draussen DUNKEL (Nacht) oder drinnen mit Partylicht; Leute TANZEN zu Musik. "
+    "Deutlich dunkler als die preparty.\n"
+    "breakfast = FRUEHSTUECK am naechsten MORGEN: wieder hell/Tag, ueberwiegend Garten, gedeckter Tisch / "
+    "Essen am Morgen oder jemand raeumt auf.\n"
+    "Faustregeln: Wasser=Fluss/Strand -> geburtstag; Wasser=See + Wiese/Sport -> werdersee; "
+    "hell + Feier (Haus/Garten) -> preparty; Instrumente + Publikum -> auftritt; dunkel + Tanzen -> party; "
+    "Morgen/Aufraeumen/Fruehstueck + hell -> breakfast. "
+    "Im Zweifel die plausibelste Phase waehlen und eine niedrige confidence angeben."
 )
 
 _sa_creds = None
@@ -119,6 +150,35 @@ def score_photo(jpg: bytes, comment: str):
     return ps, (d.get("photo_desc") or "")[:200], cs
 
 
+def categorize_photo(jpg: bytes) -> str:
+    """Ordnet ein Foto einer der 6 Phasen zu. Returns category-key (immer aus CATS)."""
+    body = {
+        "contents": [{"role": "user", "parts": [
+            {"inline_data": {"mime_type": "image/jpeg", "data": base64.b64encode(jpg).decode()}},
+            {"text": _CAT_PROMPT},
+        ]}],
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+            "maxOutputTokens": 256,
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }
+    url = (
+        f"https://{VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/{VERTEX_PROJECT}"
+        f"/locations/{VERTEX_LOCATION}/publishers/google/models/{VERTEX_MODEL}:generateContent"
+    )
+    r = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {_vertex_token()}", "Content-Type": "application/json"},
+        json=body, timeout=60,
+    )
+    r.raise_for_status()
+    txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+    cat = (json.loads(txt).get("category") or "").strip().lower()
+    return cat if cat in CATS else "preparty"
+
+
 def _creds():
     return Credentials(
         token=None,
@@ -143,6 +203,8 @@ def ensure_schema():
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_score DOUBLE PRECISION",
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS photo_desc TEXT",
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS data_bg BYTEA",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS category TEXT",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS cat_source TEXT",  # ai | ai_fail | manual
         ):
             c.execute(ddl)
         c.commit()
@@ -216,6 +278,72 @@ def maybe_rescore():
         print(f"[score] rescore-check error: {e}", flush=True)
 
 
+def run_categorization() -> int:
+    """Noch nicht kategorisierte Fotos einer der 6 Phasen zuordnen (Gemini Vision)."""
+    if not SCORING_ON:
+        return 0
+    with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
+        rows = c.execute(
+            "SELECT id, data FROM photos WHERE category IS NULL AND hidden=FALSE "
+            "ORDER BY created ASC LIMIT %s",
+            (CAT_BATCH,),
+        ).fetchall()
+    done = 0
+    for pid, data in rows:
+        try:
+            cat = categorize_photo(bytes(data))
+        except Exception as e:
+            if _is_transient(e):
+                print(f"[cat] transient {pid}: {e} -> später erneut", flush=True)
+                continue
+            n = _cat_fails.get(pid, 0) + 1
+            _cat_fails[pid] = n
+            print(f"[cat] error {pid} (Versuch {n}): {e}", flush=True)
+            if n >= 3:  # dauerhaft nicht klassifizierbar -> Fallback, damit es nicht ewig NULL bleibt
+                with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
+                    c.execute("UPDATE photos SET category='preparty', cat_source='ai_fail' WHERE id=%s", (pid,))
+                    c.commit()
+                print(f"[cat] {pid} nach {n} Versuchen Fallback -> preparty", flush=True)
+            continue
+        _cat_fails.pop(pid, None)
+        with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
+            # nur setzen, wenn nicht inzwischen manuell ueberschrieben (Race-Schutz)
+            c.execute(
+                "UPDATE photos SET category=%s, cat_source='ai' WHERE id=%s "
+                "AND (cat_source IS NULL OR cat_source IN ('ai','ai_fail'))",
+                (cat, pid),
+            )
+            c.commit()
+        done += 1
+        print(f"[cat] {pid} -> {cat}", flush=True)
+    return done
+
+
+def maybe_recategorize():
+    """Bei geaenderter CATEGORIZE_VERSION alle NICHT-manuellen Kategorien einmalig neu bestimmen."""
+    if not SCORING_ON:
+        return
+    try:
+        with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
+            c.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
+            row = c.execute("SELECT value FROM settings WHERE key='categorize_version'").fetchone()
+            cur = row[0] if row else "0"
+            if cur != CATEGORIZE_VERSION:
+                n = c.execute(
+                    "UPDATE photos SET category=NULL, cat_source=NULL "
+                    "WHERE cat_source IS NULL OR cat_source IN ('ai','ai_fail')"
+                ).rowcount
+                c.execute(
+                    "INSERT INTO settings (key, value) VALUES ('categorize_version', %s) "
+                    "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
+                    (CATEGORIZE_VERSION,),
+                )
+                c.commit()
+                print(f"[cat] Version {CATEGORIZE_VERSION}: {n} Fotos zur (Neu-)Kategorisierung markiert", flush=True)
+    except Exception as e:
+        print(f"[cat] recat-check error: {e}", flush=True)
+
+
 def run_once(svc) -> int:
     with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
         rows = c.execute(
@@ -267,6 +395,7 @@ def main():
         flush=True,
     )
     maybe_rescore()
+    maybe_recategorize()
     while True:
         try:
             n = run_once(_drive())
@@ -280,6 +409,12 @@ def main():
                 print(f"[score] {s} Foto(s) bewertet", flush=True)
         except Exception as e:
             print(f"[score] loop error: {e}", flush=True)
+        try:
+            k = run_categorization()
+            if k:
+                print(f"[cat] {k} Foto(s) kategorisiert", flush=True)
+        except Exception as e:
+            print(f"[cat] loop error: {e}", flush=True)
         time.sleep(INTERVAL)
 
 

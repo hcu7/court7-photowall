@@ -72,6 +72,23 @@
   .row .btn:disabled{opacity:.35; pointer-events:none}
   .saved{color:#34d399; font-size:12px; font-weight:700; margin-top:6px; min-height:14px}
 
+  /* Phasen-Kategorisierung je Foto */
+  .cat-label{font-size:11px; color:#9ca3af; margin:10px 0 5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase}
+  .cat-label .ai{color:#e0a04a}
+  .cats{display:grid; grid-template-columns:repeat(3,1fr); gap:6px}
+  .cat-btn{border:1px solid #2b3546; background:#0f1520; color:#cbd5e1; border-radius:10px; padding:9px 6px;
+    font-size:12.5px; font-weight:700; cursor:pointer; text-align:center; line-height:1.15; transition:all .12s}
+  .cat-btn:active{transform:scale(.97)}
+  .cat-btn.active{background:linear-gradient(135deg,#c8772f,#e0a04a); color:#0a0d14; border-color:transparent; box-shadow:0 2px 12px rgba(224,160,74,.3)}
+
+  /* Album-Admin */
+  .album-admin{background:#1a2230; border:1px solid #2b3546; border-radius:14px; padding:14px; margin-bottom:14px}
+  .album-admin .row2{display:flex; gap:8px; margin-top:10px}
+  .album-admin input{flex:1; background:#0f1520; color:#fff; border:1px solid #2b3546; border-radius:11px; padding:11px 12px; font-size:15px; font-family:inherit}
+  .album-admin input:focus{outline:none; border-color:#e0a04a}
+  .album-admin .btn{background:#283142}
+  .album-admin a{display:inline-block; margin-top:10px; color:#e0a04a; font-weight:700; font-size:14px; text-decoration:none}
+
   .empty{text-align:center; color:#9ca3af; padding:40px 0}
   .hidden{display:none !important}
 </style>
@@ -128,7 +145,15 @@
         <button class="btn" id="btn-st-refresh" style="margin-top:10px;background:#374151">↻ Wertung neu laden</button>
       </details>
     </div>
-    <div class="muted" style="margin-bottom:14px">Reihenfolge mit ▲▼ ändern · Kommentar bearbeiten + 💾 speichern · 🗑 entfernt vom Fernseher (bleibt auf dem Server gesichert).</div>
+    <div class="album-admin">
+      <b>📔 Fotoalbum</b> <span id="album-status" class="muted"></span>
+      <div class="row2">
+        <input id="album-pw" type="text" autocomplete="off" placeholder="Album-Passwort setzen / ändern" />
+        <button class="btn" id="btn-album-pw">Setzen</button>
+      </div>
+      <a id="album-link" href="/album" target="_blank" rel="noopener">Album öffnen ↗</a>
+    </div>
+    <div class="muted" style="margin-bottom:14px">Fotos sind <b>chronologisch</b> (Upload-Zeit) sortiert. Pro Foto die <b>Phase</b> wählen (KI-Vorschlag ist vorausgewählt — 1 Klick ändert ihn). Kommentar bearbeiten + 💾 · 🗑 entfernt vom Fernseher (bleibt gesichert).</div>
     <div id="list"></div>
     <div class="empty hidden" id="empty">Noch keine Fotos.</div>
   </section>
@@ -157,11 +182,21 @@ $('#btn-clear').addEventListener('click', async ()=>{
 
 function relock(){ localStorage.removeItem('pw_admin'); TOKEN=''; $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); $('#gate-err').textContent='Bitte erneut entsperren'; }
 
+// Kurz-Labels (mit Emoji) für die Phasen-Buttons je Foto.
+const CAT_SHORT = {
+  geburtstag:'🎂 Geburtstag', werdersee:'🌳 Werdersee', preparty:'🌅 Pre-Party',
+  auftritt:'🎸 Auftritt', party:'🌙 Party', breakfast:'🍳 Frühstück',
+};
+let PHASES = ['geburtstag','werdersee','preparty','auftritt','party','breakfast'];
+
 async function load(){
   try{
     const r = await fetch('/api/admin/photos?token='+q(TOKEN));
     if(r.status===401){ relock(); return; }
-    const photos = (await r.json()).photos || [];
+    const data = await r.json();
+    const photos = data.photos || [];
+    if(Array.isArray(data.phases) && data.phases.length) PHASES = data.phases.map(p=>p.key);
+    renderAlbumAdmin(data);
     $('#status').textContent = photos.length+' Foto'+(photos.length===1?'':'s');
     $('#empty').classList.toggle('hidden', photos.length>0);
     const list = $('#list'); list.innerHTML='';
@@ -170,6 +205,25 @@ async function load(){
     cerRefresh();
   }catch(e){ $('#status').textContent='Fehler beim Laden'; }
 }
+
+function renderAlbumAdmin(data){
+  const set = !!data.albumSet;
+  $('#album-status').textContent = set ? '· Passwort gesetzt ✓' : '· noch kein Passwort gesetzt';
+  $('#album-status').style.color = set ? '#34d399' : '#9ca3af';
+  $('#btn-album-pw').textContent = set ? 'Ändern' : 'Setzen';
+  const host = (data.albumHost||'').trim();
+  const link = $('#album-link');
+  link.href = host ? ('https://'+host) : '/album';
+  link.textContent = (host ? host : 'Album') + ' öffnen ↗';
+}
+$('#btn-album-pw').addEventListener('click', async ()=>{
+  const pw = $('#album-pw').value.trim();
+  if(pw.length < 3){ alert('Bitte ein Passwort mit mindestens 3 Zeichen.'); return; }
+  const fd = new FormData(); fd.append('pw', pw);
+  const r = await fetch('/api/admin/album-password?token='+q(TOKEN), {method:'POST', body:fd});
+  if(r.ok){ $('#album-pw').value=''; alert('Album-Passwort gesetzt. Gäste können sich damit einloggen.'); load(); }
+  else alert('Konnte nicht gesetzt werden.');
+});
 
 function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
@@ -237,8 +291,12 @@ $('#btn-st-refresh').addEventListener('click', cerRefresh);
 
 function card(p){
   const el = document.createElement('div'); el.className='card'; el.dataset.id=p.id;
+  const aiHint = p.category ? (p.catSource==='manual' ? '' : ' <span class="ai">· KI-Vorschlag</span>') : ' <span class="ai">· wird kategorisiert …</span>';
+  const catBtns = PHASES.map(k=>`<button class="cat-btn${p.category===k?' active':''}" data-cat="${k}">${CAT_SHORT[k]||k}</button>`).join('');
   el.innerHTML = `
     <div class="pic"><span class="pos"></span><img src="${p.url}" loading="lazy" alt=""></div>
+    <div class="cat-label">Phase${aiHint}</div>
+    <div class="cats">${catBtns}</div>
     <textarea maxlength="280" placeholder="Kommentar (erscheint auf dem Fernseher)…"></textarea>
     <div class="row">
       <button class="btn up" title="nach oben">▲</button>
@@ -248,11 +306,22 @@ function card(p){
     </div>
     <div class="saved"></div>`;
   el.querySelector('textarea').value = p.comment || '';
+  el.querySelectorAll('.cat-btn').forEach(b=> b.addEventListener('click', ()=> setCategory(el, b.dataset.cat)));
   el.querySelector('.up').addEventListener('click', ()=> move(el,-1));
   el.querySelector('.down').addEventListener('click', ()=> move(el,1));
   el.querySelector('.save').addEventListener('click', ()=> saveComment(el));
   el.querySelector('.del').addEventListener('click', ()=> del(el));
   return el;
+}
+
+async function setCategory(el, cat){
+  // sofort optisch umschalten (kein Bestätigen), dann persistieren
+  el.querySelectorAll('.cat-btn').forEach(b=> b.classList.toggle('active', b.dataset.cat===cat));
+  el.querySelector('.cat-label').innerHTML = 'Phase';
+  try{
+    const r = await fetch('/api/photos/'+q(el.dataset.id)+'/category?cat='+q(cat)+'&token='+q(TOKEN), {method:'POST'});
+    if(!r.ok && r.status===401) relock();
+  }catch(e){}
 }
 
 function cards(){ return [...$('#list').children]; }

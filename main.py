@@ -27,13 +27,16 @@ Endpoints
   POST /api/order               Reihenfolge setzen (Token, JSON {ids:[...]})
   GET  /healthz                 Healthcheck
 """
+import hashlib
 import hmac
 import io
 import json
 import os
 import re
+import tempfile
 import time
 import uuid
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -44,10 +47,11 @@ except Exception:  # pragma: no cover
     _TZ = None
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from PIL import Image, ImageOps
+from starlette.background import BackgroundTask
 
 try:
     import pillow_heif
@@ -77,8 +81,21 @@ MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "40")) * 1024 * 1024
 Image.MAX_IMAGE_PIXELS = 30_000_000   # Decompression-Bomb-Schutz: PIL bricht hart bei >2x (~60 MP) ab
 MAX_COMMENT = 280
 APP_BOOT = str(int(time.time()))  # ändert sich bei jedem (Re)Deploy -> TV lädt automatisch neu
+ALBUM_HOST = os.environ.get("ALBUM_HOST", "").strip().lower()  # z.B. antje60.court7.world -> "/" zeigt das Album
 
 ID_RE = re.compile(r"^\d{13,}-[a-f0-9]{8}$")
+
+# Phasen des Abends (chronologische Reihenfolge) — gemeinsam von Worker, Moderate und Album genutzt.
+PHASE_ORDER = ["geburtstag", "werdersee", "preparty", "auftritt", "party", "breakfast"]
+PHASE_LABELS = {
+    "geburtstag": "Der Geburtstag · an der Weser",
+    "werdersee": "Werdersee",
+    "preparty": "Pre-Party",
+    "auftritt": "Der Auftritt",
+    "party": "Die Party",
+    "breakfast": "Frühstück am Morgen danach",
+    "weitere": "Weitere",
+}
 
 # ---------------------------------------------------------------------------
 # Datenbank-Schicht (Postgres in Prod, SQLite lokal)
@@ -154,6 +171,8 @@ def init_db():
     _add_col("photo_score DOUBLE PRECISION", "photo_score REAL")
     _add_col("photo_desc TEXT", "photo_desc TEXT")
     _add_col("data_bg BYTEA", "data_bg BLOB")   # vorab erzeugter Blur-Hintergrund (klein)
+    _add_col("category TEXT", "category TEXT")          # Phase: geburtstag|werdersee|preparty|auftritt|party|breakfast
+    _add_col("cat_source TEXT", "cat_source TEXT")      # ai | ai_fail | manual
     _exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
 
 
@@ -260,6 +279,36 @@ def _require_admin(token: str) -> None:
         raise HTTPException(status_code=401, detail="Nicht autorisiert")
 
 
+# ---- Album-Zugang (Passwort, vom Admin gesetzt; Cookie-Session) -------------
+def _album_hash(pw: str) -> str:
+    return hashlib.sha256((ADMIN_TOKEN + ":" + (pw or "")).encode()).hexdigest()
+
+
+def _album_cookie_value() -> str:
+    # signiert mit ADMIN_TOKEN -> ohne Admin-Token nicht fälschbar
+    return hmac.new(ADMIN_TOKEN.encode(), b"antje-album-v1", hashlib.sha256).hexdigest()
+
+
+def _album_ok(request: Request) -> bool:
+    if not ADMIN_TOKEN:
+        return False
+    c = request.cookies.get("album", "")
+    return bool(c) and hmac.compare_digest(c, _album_cookie_value())
+
+
+def _phase_key(cat) -> str:
+    return cat if cat in PHASE_ORDER else "weitere"
+
+
+def _album_rows():
+    """Alle sichtbaren Fotos, sortiert nach Phase (chronologisch) dann Upload-Zeit."""
+    rows = _exec(
+        f"SELECT id, comment, category, created FROM photos WHERE hidden={_FALSE}", (), "all"
+    ) or []
+    order = {k: i for i, k in enumerate(PHASE_ORDER)}
+    return sorted(rows, key=lambda r: (order.get(_phase_key(r[2]), len(PHASE_ORDER)), r[3] or 0, r[0]))
+
+
 STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="Court 7 Photowall")
 init_db()
@@ -356,8 +405,20 @@ def admin_check(token: str = Query("")):
 @app.get("/api/admin/photos")
 def admin_photos(token: str = Query("")):
     _require_admin(token)
-    rows = db_list()
-    return {"photos": [{"id": r[0], "url": f"/photo/{r[0]}", "comment": r[1] or ""} for r in rows]}
+    rows = _exec(
+        f"SELECT id, comment, category, cat_source, created FROM photos WHERE hidden={_FALSE} "
+        f"ORDER BY created ASC, id ASC", (), "all",
+    ) or []
+    return {
+        "photos": [
+            {"id": r[0], "url": f"/photo/{r[0]}", "comment": r[1] or "",
+             "category": r[2] or "", "catSource": r[3] or ""}
+            for r in rows
+        ],
+        "phases": [{"key": k, "label": PHASE_LABELS[k]} for k in PHASE_ORDER],
+        "albumSet": bool(setting_get("album_pw", "")),
+        "albumHost": ALBUM_HOST,
+    }
 
 
 @app.post("/api/admin/clear")
@@ -386,6 +447,18 @@ def set_comment(pid: str, comment: str = Form(""), token: str = Query("")):
         raise HTTPException(status_code=404, detail="Not found")
     db_set_comment(pid, _clean_comment(comment))
     return {"ok": True, "comment": _clean_comment(comment)}
+
+
+@app.post("/api/photos/{pid}/category")
+def set_category(pid: str, cat: str = Query(""), token: str = Query("")):
+    """Manuelle Phasen-Zuordnung durch den Admin (überschreibt den KI-Vorschlag, ohne Bestätigung)."""
+    _require_admin(token)
+    if not ID_RE.match(pid) or not db_exists(pid):
+        raise HTTPException(status_code=404, detail="Not found")
+    if cat not in PHASE_ORDER:
+        raise HTTPException(status_code=400, detail="Unbekannte Phase")
+    _exec("UPDATE photos SET category=?, cat_source='manual' WHERE id=?", (cat, pid))
+    return {"ok": True, "category": cat}
 
 
 @app.post("/api/order")
@@ -604,6 +677,92 @@ def qr_png(request: Request, data: str = Query("")):
     )
 
 
+# ---- Fotoalbum (passwortgeschützt) ------------------------------------------
+@app.post("/api/admin/album-password")
+def set_album_password(pw: str = Form(""), token: str = Query("")):
+    """Admin setzt das Album-Passwort (gehasht in settings; Klartext landet nie im Repo/Log)."""
+    _require_admin(token)
+    pw = (pw or "").strip()
+    if len(pw) < 3:
+        raise HTTPException(status_code=400, detail="Passwort zu kurz (min. 3 Zeichen)")
+    setting_set("album_pw", _album_hash(pw))
+    return {"ok": True}
+
+
+@app.post("/api/album/login")
+def album_login(pw: str = Form("")):
+    stored = setting_get("album_pw", "")
+    if not stored:
+        raise HTTPException(status_code=403, detail="Album ist noch nicht freigeschaltet.")
+    if not hmac.compare_digest(_album_hash(pw), stored):
+        raise HTTPException(status_code=401, detail="Falsches Passwort")
+    resp = JSONResponse({"ok": True})
+    resp.set_cookie(
+        "album", _album_cookie_value(), max_age=60 * 60 * 24 * 30,
+        httponly=True, samesite="lax", secure=True, path="/",
+    )
+    return resp
+
+
+@app.get("/api/album/state")
+def album_state(request: Request):
+    """Für die Album-Seite: ist ein Passwort gesetzt? Bin ich eingeloggt?"""
+    return {"enabled": bool(setting_get("album_pw", "")), "authed": _album_ok(request), "title": TITLE}
+
+
+@app.get("/api/album/photos")
+def album_photos(request: Request):
+    if not _album_ok(request):
+        raise HTTPException(status_code=401, detail="Bitte einloggen")
+    rows = _album_rows()
+    return {
+        "phases": [{"key": k, "label": PHASE_LABELS[k]} for k in PHASE_ORDER + ["weitere"]],
+        "photos": [
+            {"id": r[0], "url": f"/photo/{r[0]}", "comment": r[1] or "", "phase": _phase_key(r[2])}
+            for r in rows
+        ],
+        "count": len(rows),
+    }
+
+
+@app.get("/api/album/zip")
+def album_zip(request: Request, ids: str = Query(""), token: str = Query("")):
+    """Zip-Download (alle oder ausgewählte Fotos). Zugang via Album-Cookie ODER Admin-Token.
+    Kommentare werden NICHT mitgepackt (nur die Bilder), chronologisch benannt."""
+    if not (_album_ok(request) or (ADMIN_TOKEN and token and hmac.compare_digest(token, ADMIN_TOKEN))):
+        raise HTTPException(status_code=401, detail="Bitte einloggen")
+    rows = _album_rows()
+    sel = {i for i in ids.split(",") if ID_RE.match(i)} if ids.strip() else None
+    if sel is not None:
+        rows = [r for r in rows if r[0] in sel]
+    if not rows:
+        raise HTTPException(status_code=404, detail="Keine Fotos ausgewählt")
+    if len(rows) > 1000:
+        rows = rows[:1000]
+    # In eine Temp-Datei streamen (ein Foto nach dem anderen) -> niedriger Speicherverbrauch.
+    tmp = tempfile.NamedTemporaryFile(prefix="album-", suffix=".zip", delete=False)
+    try:
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as z:  # JPEGs sind schon komprimiert
+            for i, r in enumerate(rows, 1):
+                data = db_photo(r[0])
+                if data is None:
+                    continue
+                z.writestr(f"{i:03d}_{_phase_key(r[2])}.jpg", data)
+        tmp.close()
+    except Exception:
+        tmp.close()
+        try:
+            os.remove(tmp.name)
+        except OSError:
+            pass
+        raise HTTPException(status_code=500, detail="Zip fehlgeschlagen")
+    fname = "Antje-60-Fotoalbum.zip" if sel is None else "Antje-60-Auswahl.zip"
+    return FileResponse(
+        tmp.name, media_type="application/zip", filename=fname,
+        background=BackgroundTask(lambda: os.path.exists(tmp.name) and os.remove(tmp.name)),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Seiten
 # ---------------------------------------------------------------------------
@@ -611,7 +770,10 @@ _NOCACHE = {"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "n
 
 
 @app.get("/")
-def index():
+def index(request: Request):
+    # Auf der Album-Subdomain (ALBUM_HOST) zeigt "/" direkt das Album, sonst die Upload-Seite.
+    if ALBUM_HOST and request.url.hostname and request.url.hostname.lower() == ALBUM_HOST:
+        return FileResponse(STATIC / "album.html", headers=_NOCACHE)
     return FileResponse(STATIC / "upload.html", headers=_NOCACHE)
 
 
@@ -623,6 +785,11 @@ def tv():
 @app.get("/moderate")
 def moderate():
     return FileResponse(STATIC / "moderate.html", headers=_NOCACHE)
+
+
+@app.get("/album")
+def album():
+    return FileResponse(STATIC / "album.html", headers=_NOCACHE)
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
