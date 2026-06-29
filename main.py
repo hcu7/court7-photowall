@@ -88,12 +88,12 @@ ID_RE = re.compile(r"^\d{13,}-[a-f0-9]{8}$")
 # Phasen des Abends (chronologische Reihenfolge) — gemeinsam von Worker, Moderate und Album genutzt.
 PHASE_ORDER = ["geburtstag", "werdersee", "preparty", "auftritt", "party", "breakfast"]
 PHASE_LABELS = {
-    "geburtstag": "Der Geburtstag · an der Weser",
+    "geburtstag": "Donnerstag · Geburtstagsmorgen",
     "werdersee": "Werdersee",
     "preparty": "Pre-Party",
-    "auftritt": "Der Auftritt",
+    "auftritt": "Musikalische Einlage",
     "party": "Die Party",
-    "breakfast": "Frühstück am Morgen danach",
+    "breakfast": "Der Morgen danach",
     "weitere": "Weitere",
 }
 
@@ -171,6 +171,7 @@ def init_db():
     _add_col("photo_score DOUBLE PRECISION", "photo_score REAL")
     _add_col("photo_desc TEXT", "photo_desc TEXT")
     _add_col("data_bg BYTEA", "data_bg BLOB")   # vorab erzeugter Blur-Hintergrund (klein)
+    _add_col("data_full BYTEA", "data_full BLOB")  # Original in voller Aufloesung (q95) — nur fuer Downloads (ab jetzt)
     _add_col("category TEXT", "category TEXT")          # Phase: geburtstag|werdersee|preparty|auftritt|party|breakfast
     _add_col("cat_source TEXT", "cat_source TEXT")      # ai | ai_fail | manual
     _exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
@@ -204,11 +205,17 @@ def setting_set(key: str, value: str):
         _exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
 
 
-def db_insert(pid: str, data: bytes, data_bg: bytes, comment: str, sort: float):
+def db_insert(pid: str, data: bytes, data_full: bytes, data_bg: bytes, comment: str, sort: float):
     _exec(
-        "INSERT INTO photos (id, data, data_bg, comment, sort, created) VALUES (?, ?, ?, ?, ?, ?)",
-        (pid, data, data_bg, comment, sort, sort),
+        "INSERT INTO photos (id, data, data_full, data_bg, comment, sort, created) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (pid, data, data_full, data_bg, comment, sort, sort),
     )
+
+
+def db_photo_full(pid: str):
+    """Original (volle Aufloesung) falls vorhanden, sonst None -> Aufrufer faellt auf data zurueck."""
+    row = _exec(f"SELECT data_full FROM photos WHERE id=? AND hidden={_FALSE}", (pid,), "one")
+    return bytes(row[0]) if row and row[0] is not None else None
 
 
 def db_photo(pid: str):
@@ -354,10 +361,15 @@ def get_photos():
 
 
 @app.get("/photo/{pid}")
-def get_photo(pid: str, w: int = 0):
+def get_photo(pid: str, w: int = 0, full: int = 0):
     if not ID_RE.match(pid):
         raise HTTPException(status_code=404, detail="Not found")
     hdr = {"Cache-Control": "public, max-age=31536000, immutable"}
+    if full:  # Download in voller Aufloesung (Original). Fallback: Anzeige-Foto, falls kein Original gespeichert.
+        data = db_photo_full(pid) or db_photo(pid)
+        if data is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        return Response(content=data, media_type="image/jpeg", headers=hdr)
     if w:  # winziger Blur-Hintergrund: vorab erzeugt; Altbestand einmalig nachziehen + speichern -> nie Resize-Stau
         bg = db_photo_bg(pid)
         if bg is None:
@@ -384,8 +396,9 @@ async def upload(file: UploadFile = File(...), comment: str = Form("")):
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei zu groß")
     try:
-        data = _resize_jpeg(raw, DISPLAY_DIM, JPEG_QUALITY)   # Anzeige-/Backup-Foto (klein)
+        data = _resize_jpeg(raw, DISPLAY_DIM, JPEG_QUALITY)   # Anzeige-/Backup-Foto (klein, schnell)
         data_bg = _resize_jpeg(raw, BG_DIM, 72)               # Blur-Hintergrund (winzig)
+        data_full = _resize_jpeg(raw, 100_000, 95)            # Original in voller Aufloesung (q95) -> Downloads
     except Image.DecompressionBombError:
         raise HTTPException(status_code=413, detail="Bild zu groß (Pixelmenge)")
     except Exception:
@@ -393,7 +406,7 @@ async def upload(file: UploadFile = File(...), comment: str = Form("")):
 
     pid = _new_id()
     text = _clean_comment(comment)
-    db_insert(pid, data, data_bg, text, float(int(time.time() * 1000)))
+    db_insert(pid, data, data_full, data_bg, text, float(int(time.time() * 1000)))
     return {"id": pid, "url": f"/photo/{pid}", "comment": text}
 
 
@@ -745,7 +758,7 @@ def album_zip(request: Request, ids: str = Query(""), token: str = Query("")):
     try:
         with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as z:  # JPEGs sind schon komprimiert
             for i, r in enumerate(rows, 1):
-                data = db_photo(r[0])
+                data = db_photo_full(r[0]) or db_photo(r[0])   # volle Aufloesung, Fallback Anzeige-Foto
                 if data is None:
                     continue
                 z.writestr(f"{i:03d}_{_phase_key(r[2])}.jpg", data)

@@ -59,21 +59,25 @@
   .hero .hint{color:var(--muted); font-size:13px; margin-top:18px; opacity:.85}
 
   /* ---------- Sektionen + Masonry ---------- */
-  main{max-width:1280px; margin:0 auto; padding:0 12px 80px}
-  section.sec{margin-top:34px; content-visibility:auto; contain-intrinsic-size:1px 1200px}
+  main{max-width:1320px; margin:0 auto; padding:0 14px 80px}
+  section.sec{margin-top:40px}
   .sec-head{padding:0 4px 14px}
   .sec-head .kick{font-size:12px; letter-spacing:.26em; text-transform:uppercase; color:var(--gold); font-weight:700}
   .sec-head h2{font-size:clamp(26px,5vw,40px); font-weight:600; margin-top:4px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
   .sec-head h2 .cnt{font-size:15px; color:var(--muted); font-weight:400; font-family:inherit}
   .sec-head .rule{height:1px; background:var(--line); margin-top:12px}
 
-  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); grid-auto-rows:6px; gap:14px; margin-top:18px}
-  @media(min-width:560px){ .grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))} }
-  .ph{grid-row-end:span 28; position:relative; border-radius:12px; overflow:hidden; background:var(--card);
-    box-shadow:var(--shadow); cursor:pointer; opacity:0; transform:translateY(10px);
-    transition:opacity .5s ease, transform .5s ease}
-  .ph.in{opacity:1; transform:none}
-  .ph img{width:100%; height:auto; display:block; background:#e7ded0}
+  /* echtes Masonry per CSS-Columns: jedes Bild in natürlicher Höhe, nie Leerraum, Portrait groß / Quer klein */
+  .grid{column-count:2; column-gap:12px; margin-top:18px}
+  @media(min-width:560px){ .grid{column-count:3} }
+  @media(min-width:920px){ .grid{column-count:4} }
+  @media(min-width:1200px){ .grid{column-count:5} }
+  .ph{position:relative; break-inside:avoid; -webkit-column-break-inside:avoid; margin:0 0 12px;
+    border-radius:12px; overflow:hidden; background:var(--card); box-shadow:var(--shadow); cursor:pointer;
+    opacity:0; transition:opacity .55s ease}
+  .ph.in{opacity:1}
+  .ph img{width:100%; height:auto; display:block; background:#e7ded0; transition:transform .45s ease}
+  @media(hover:hover){ .ph:hover img{transform:scale(1.045)} }
   .ph .cap{font-family:"Hoefler Text",Garamond,Georgia,serif; font-style:italic; font-size:14px; line-height:1.3;
     color:var(--ink); padding:9px 12px 11px}
   .ph .pick{position:absolute; top:9px; right:9px; width:25px; height:25px; border-radius:50%;
@@ -264,8 +268,7 @@ async function showApp(){
       const cap = p.comment ? `<figcaption class="cap">„${escapeHtml(p.comment)}"</figcaption>` : '';
       fig.innerHTML = `<span class="pick">✓</span><img loading="lazy" src="/photo/${p.id}?w=400" alt="">${cap}`;
       const img = fig.querySelector('img');
-      img.addEventListener('load', ()=> spanItem(fig));
-      img.addEventListener('error', ()=>{ fig.style.display='none'; });  // fehlendes Bild: kein Masonry-Loch
+      img.addEventListener('error', ()=>{ fig.style.display='none'; });  // fehlendes Bild ausblenden
       fig.addEventListener('click', ()=>{
         if(selectMode){ toggleSelect(fig); }
         else openLightbox(idx);
@@ -275,20 +278,9 @@ async function showApp(){
     });
     sectionsEl.appendChild(sec);
   });
-  relayoutDebounced();
 }
 
 function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-
-// ---------- Masonry: Zeilen-Span aus gemessener Höhe ----------
-const ROW=6, GAP=14;
-function spanItem(fig){
-  const h = fig.getBoundingClientRect().height;
-  if(h>0) fig.style.gridRowEnd = 'span ' + Math.max(8, Math.ceil((h+GAP)/(ROW+GAP)));
-}
-let _rl;
-function relayoutDebounced(){ clearTimeout(_rl); _rl=setTimeout(()=>{ document.querySelectorAll('.ph').forEach(spanItem); }, 120); }
-window.addEventListener('resize', relayoutDebounced);
 
 // Einblenden beim Scrollen
 const io = new IntersectionObserver((es)=>{ es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, {rootMargin:'120px'});
@@ -300,7 +292,7 @@ function openLightbox(idx){
   $('#lb-img').src = '/photo/'+p.id;
   $('#lb-cap').textContent = p.comment ? '„'+p.comment+'"' : '';
   $('#lb-meta').textContent = (idx+1) + ' / ' + PHOTOS.length;
-  const dl = $('#lb-dl'); dl.href = '/photo/'+p.id; dl.setAttribute('download', 'Antje-60-'+(p.phase||'foto')+'-'+(idx+1)+'.jpg');
+  const dl = $('#lb-dl'); dl.href = '/photo/'+p.id+'?full=1'; dl.setAttribute('download', 'Antje-60-'+(p.phase||'foto')+'-'+(idx+1)+'.jpg');  // volle Auflösung
   $('#lb').classList.add('show');
 }
 function lbStep(d){ let n = lbIdx + d; if(n<0) n=PHOTOS.length-1; if(n>=PHOTOS.length) n=0; openLightbox(n); }
