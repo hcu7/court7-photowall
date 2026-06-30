@@ -3,135 +3,187 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#f4efe7" />
+<meta name="theme-color" content="#f7f7f5" />
 <title>Antjes 60. · Fotoalbum</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --paper:#f4efe7; --ink:#2a2620; --muted:#857d6f; --line:#ded4c4;
-    --gold:#b07a3c; --card:#fffdf9; --shadow:0 8px 30px rgba(60,45,25,.12);
+  /* ---------- Themes ---------- */
+  body[data-theme="modern"]{
+    --bg:#f6f6f4; --ink:#15171c; --muted:#71757e; --line:#e7e7e3; --card:#ffffff; --accent:#15171c; --gold:#c8772f;
+    --font-body:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-display:'Inter',-apple-system,system-ui,sans-serif; --dw:800; --ds:-.025em; --radius:16px;
+    --shadow:0 6px 22px rgba(20,20,35,.07); --barbg:rgba(246,246,244,.85);
   }
+  body[data-theme="editorial"]{
+    --bg:#f4efe7; --ink:#2a2620; --muted:#857d6f; --line:#e0d6c6; --card:#fffdf9; --accent:#b07a3c; --gold:#b07a3c;
+    --font-body:'Inter',-apple-system,system-ui,sans-serif;
+    --font-display:'Fraunces','Hoefler Text',Georgia,serif; --dw:540; --ds:.004em; --radius:13px;
+    --shadow:0 8px 30px rgba(60,45,25,.12); --barbg:rgba(244,239,231,.86);
+  }
+  body[data-theme="dark"]{
+    --bg:#0f1012; --ink:#ededee; --muted:#9aa0a6; --line:#26282d; --card:#1a1c20; --accent:#e0a04a; --gold:#e0a04a;
+    --font-body:'Inter',-apple-system,system-ui,sans-serif;
+    --font-display:'Fraunces',Georgia,serif; --dw:540; --ds:.004em; --radius:13px;
+    --shadow:0 12px 40px rgba(0,0,0,.55); --barbg:rgba(15,16,18,.82);
+  }
+
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent}
   html{scroll-behavior:smooth}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-    background:var(--paper); color:var(--ink); min-height:100dvh; -webkit-font-smoothing:antialiased}
-  .serif{font-family:"Hoefler Text",Garamond,"Times New Roman",Georgia,serif}
+  body{font-family:var(--font-body); background:var(--bg); color:var(--ink); min-height:100dvh;
+    -webkit-font-smoothing:antialiased; --gap:12px; --cols:4; --colsBig:2}
+  .disp{font-family:var(--font-display); font-weight:var(--dw); letter-spacing:var(--ds)}
 
-  /* ---------- Login-Gate ---------- */
+  /* ---------- Login ---------- */
   #gate{max-width:380px; margin:0 auto; min-height:100dvh; display:flex; flex-direction:column;
     align-items:center; justify-content:center; text-align:center; padding:24px}
-  #gate .lock{font-size:34px; margin-bottom:6px}
-  #gate h1{font-size:30px; font-weight:600; letter-spacing:.01em; margin-bottom:4px}
+  #gate .lock{font-size:34px; margin-bottom:8px}
+  #gate h1{font-size:32px; margin-bottom:6px}
   #gate p{color:var(--muted); font-size:14.5px; margin-bottom:22px}
   #gate input{width:100%; padding:15px 16px; font-size:17px; border-radius:13px; border:1px solid var(--line);
-    background:#fff; color:var(--ink); text-align:center; margin-bottom:12px}
+    background:var(--card); color:var(--ink); text-align:center; margin-bottom:12px}
   #gate input:focus{outline:none; border-color:var(--gold)}
-  #gate button{width:100%; padding:15px; border:0; border-radius:13px; background:var(--gold); color:#fff;
+  #gate button{width:100%; padding:15px; border:0; border-radius:13px; background:var(--accent); color:#fff;
     font-size:16px; font-weight:700; cursor:pointer}
-  #gate button:active{transform:scale(.99)}
-  #gate .err{color:#b4452e; font-weight:600; font-size:14px; margin-top:12px; min-height:18px}
+  body[data-theme="modern"] #gate button{color:#fff}
+  #gate .err{color:#d4452e; font-weight:600; font-size:14px; margin-top:12px; min-height:18px}
   #gate .note{color:var(--muted); font-size:13px; margin-top:14px}
 
   /* ---------- Sticky-Kopf ---------- */
-  header.bar{position:sticky; top:0; z-index:40; background:rgba(244,239,231,.86);
-    backdrop-filter:blur(12px); border-bottom:1px solid var(--line)}
-  .bar-row{display:flex; align-items:center; gap:12px; max-width:1280px; margin:0 auto; padding:11px 16px}
-  .bar-title{font-size:19px; font-weight:600; letter-spacing:.01em; white-space:nowrap}
-  .bar-title small{color:var(--muted); font-weight:400; font-size:13px; margin-left:8px}
+  header.bar{position:sticky; top:0; z-index:40; background:var(--barbg); backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line)}
+  .bar-row{display:flex; align-items:center; gap:10px; max-width:1400px; margin:0 auto; padding:11px 16px}
+  .bar-title{font-size:19px; white-space:nowrap}
+  .bar-title small{color:var(--muted); font-weight:400; font-size:12.5px; margin-left:8px; font-family:var(--font-body)}
   .bar-actions{margin-left:auto; display:flex; gap:8px}
-  .act{border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:999px;
-    padding:8px 14px; font-size:13.5px; font-weight:700; cursor:pointer; white-space:nowrap}
+  .act{border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:999px;
+    padding:8px 14px; font-size:13.5px; font-weight:600; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:6px}
   .act:active{transform:scale(.97)}
-  .act.gold{background:var(--gold); color:#fff; border-color:transparent}
-  .act.on{background:var(--ink); color:var(--paper); border-color:transparent}
-  /* Phasen-Sprungmarken */
-  .chips{display:flex; gap:8px; overflow-x:auto; padding:0 16px 11px; max-width:1280px; margin:0 auto;
-    scrollbar-width:none}
+  .act.solid{background:var(--accent); color:#fff; border-color:transparent}
+  body[data-theme="modern"] .act.solid{color:#fff}
+  .act.on{background:var(--ink); color:var(--bg); border-color:transparent}
+  .chips{display:flex; gap:8px; overflow-x:auto; padding:0 16px 11px; max-width:1400px; margin:0 auto; scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
-  .chip{border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:999px;
-    padding:7px 13px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; flex:0 0 auto}
-  .chip:active{transform:scale(.97)}
+  .chip{border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:999px;
+    padding:7px 13px; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap; flex:0 0 auto}
+
+  /* ---------- Ansicht-Panel ---------- */
+  #viewpanel{max-width:1400px; margin:0 auto; padding:0 16px; overflow:hidden; max-height:0; transition:max-height .3s ease}
+  #viewpanel.open{max-height:340px}
+  .vp-inner{display:flex; flex-wrap:wrap; gap:18px 28px; align-items:center; padding:14px 2px 18px; border-bottom:1px solid var(--line)}
+  .vp-group{display:flex; flex-direction:column; gap:7px}
+  .vp-group > span{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  .seg{display:inline-flex; background:var(--card); border:1px solid var(--line); border-radius:11px; padding:3px; gap:2px}
+  .seg button{border:0; background:transparent; color:var(--muted); font:inherit; font-size:13.5px; font-weight:600;
+    padding:7px 13px; border-radius:8px; cursor:pointer}
+  .seg button.on{background:var(--accent); color:#fff}
+  body[data-theme="modern"] .seg button.on{color:#fff}
+  .vp-group input[type=range]{width:160px; accent-color:var(--gold)}
 
   /* ---------- Hero ---------- */
-  .hero{text-align:center; padding:46px 20px 30px}
-  .hero .kick{font-size:13px; letter-spacing:.32em; text-transform:uppercase; color:var(--gold); font-weight:700}
-  .hero h1{font-size:clamp(44px,11vw,86px); font-weight:600; line-height:.98; margin:12px 0 10px; letter-spacing:.005em}
+  .hero{text-align:center; padding:48px 20px 26px; max-width:1400px; margin:0 auto}
+  .hero .kick{font-size:12.5px; letter-spacing:.34em; text-transform:uppercase; color:var(--gold); font-weight:700}
+  .hero h1{font-size:clamp(46px,12vw,104px); line-height:.95; margin:14px 0 10px}
   .hero .sub{color:var(--muted); font-size:16px}
-  .hero .hint{color:var(--muted); font-size:13px; margin-top:18px; opacity:.85}
 
-  /* ---------- Sektionen + Masonry ---------- */
-  main{max-width:1320px; margin:0 auto; padding:0 14px 80px}
-  section.sec{margin-top:40px}
+  /* ---------- Gewinner ---------- */
+  #winners{max-width:1400px; margin:8px auto 0; padding:0 16px}
+  #winners.hidden{display:none}
+  .win-head{display:flex; align-items:baseline; gap:12px; padding:0 4px 14px}
+  .win-head h2{font-size:clamp(22px,4vw,32px)}
+  .win-head .rule{flex:1; height:1px; background:var(--line)}
+  .win-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  @media(max-width:620px){ .win-grid{grid-template-columns:1fr} }
+  .win-card{position:relative; border-radius:var(--radius); overflow:hidden; background:var(--card); box-shadow:var(--shadow); cursor:pointer}
+  .win-card img{width:100%; height:clamp(240px,38vh,420px); object-fit:cover; display:block}
+  .win-meta{padding:14px 16px 16px}
+  .win-meta .badge{display:inline-block; font-size:11.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--gold); margin-bottom:6px}
+  .win-meta .txt{font-size:16px; line-height:1.3}
+  .win-meta .txt.empty{color:var(--muted); font-style:italic}
+
+  /* ---------- Sektionen ---------- */
+  main{max-width:1400px; margin:0 auto; padding:0 14px 90px}
+  section.sec{margin-top:44px}
   .sec-head{padding:0 4px 14px}
   .sec-head .kick{font-size:12px; letter-spacing:.26em; text-transform:uppercase; color:var(--gold); font-weight:700}
-  .sec-head h2{font-size:clamp(26px,5vw,40px); font-weight:600; margin-top:4px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
-  .sec-head h2 .cnt{font-size:15px; color:var(--muted); font-weight:400; font-family:inherit}
-  .sec-head .rule{height:1px; background:var(--line); margin-top:12px}
+  .sec-head h2{font-size:clamp(27px,5vw,44px); margin-top:5px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+  .sec-head h2 .cnt{font-size:14px; color:var(--muted); font-weight:400; font-family:var(--font-body)}
+  .sec-head .rule{height:1px; background:var(--line); margin-top:13px}
 
-  /* echtes Masonry per CSS-Columns: jedes Bild in natürlicher Höhe, nie Leerraum, Portrait groß / Quer klein */
-  .grid{column-count:2; column-gap:12px; margin-top:18px}
-  @media(min-width:560px){ .grid{column-count:3} }
-  @media(min-width:920px){ .grid{column-count:4} }
-  @media(min-width:1200px){ .grid{column-count:5} }
-  .ph{position:relative; break-inside:avoid; -webkit-column-break-inside:avoid; margin:0 0 12px;
-    border-radius:12px; overflow:hidden; background:var(--card); box-shadow:var(--shadow); cursor:pointer;
-    opacity:0; transition:opacity .55s ease}
+  .grid{margin-top:18px}
+  .ph{position:relative; border-radius:var(--radius); overflow:hidden; background:var(--card); box-shadow:var(--shadow);
+    cursor:pointer; opacity:0; transition:opacity .5s ease}
   .ph.in{opacity:1}
-  .ph img{width:100%; height:auto; display:block; background:#e7ded0; transition:transform .45s ease}
-  @media(hover:hover){ .ph:hover img{transform:scale(1.045)} }
-  .ph .cap{font-family:"Hoefler Text",Garamond,Georgia,serif; font-style:italic; font-size:14px; line-height:1.3;
-    color:var(--ink); padding:9px 12px 11px}
-  .ph .pick{position:absolute; top:9px; right:9px; width:25px; height:25px; border-radius:50%;
-    border:2px solid #fff; background:rgba(0,0,0,.32); display:none; align-items:center; justify-content:center;
-    color:#fff; font-size:15px; font-weight:800; box-shadow:0 1px 6px rgba(0,0,0,.3)}
+  .ph img{width:100%; display:block; background:color-mix(in srgb, var(--ink) 8%, transparent); transition:transform .45s ease}
+  @media(hover:hover){ .ph:hover img{transform:scale(1.05)} }
+  .ph .cap{font-family:var(--font-display); font-style:italic; font-size:13.5px; line-height:1.3; color:var(--ink); padding:9px 12px 11px}
+  body[data-theme="modern"] .ph .cap{font-style:normal; font-weight:500}
+  .ph .pick{position:absolute; top:9px; right:9px; width:26px; height:26px; border-radius:50%; border:2px solid #fff;
+    background:rgba(0,0,0,.32); display:none; align-items:center; justify-content:center; color:#fff; font-size:15px; font-weight:800}
   body.selmode .ph .pick{display:flex}
   .ph.sel{outline:3px solid var(--gold); outline-offset:-3px}
-  .ph.sel .pick{background:var(--gold); border-color:#fff}
+  .ph.sel .pick{background:var(--gold)}
+
+  /* Layout: Mosaik (Spalten, variable Höhe) */
+  body[data-layout="mosaik"] .grid{column-count:var(--cols); column-gap:var(--gap)}
+  body[data-layout="mosaik"] .ph{break-inside:avoid; -webkit-column-break-inside:avoid; margin:0 0 var(--gap); width:100%}
+  body[data-layout="mosaik"] .ph img{height:auto}
+
+  /* Layout: Raster (quadratisch, Crop) */
+  body[data-layout="raster"] .grid{display:grid; grid-template-columns:repeat(var(--cols),1fr); gap:var(--gap)}
+  body[data-layout="raster"] .ph{aspect-ratio:1}
+  body[data-layout="raster"] .ph img{width:100%; height:100%; object-fit:cover}
+  body[data-layout="raster"] .ph .cap{position:absolute; left:0; right:0; bottom:0; color:#fff; padding:18px 12px 9px;
+    background:linear-gradient(0deg,rgba(0,0,0,.72),transparent); font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+
+  /* Layout: Groß (Masonry mit wenigen, großen Spalten — immersiv) */
+  body[data-layout="gross"] .grid{column-count:var(--colsBig); column-gap:var(--gap)}
+  body[data-layout="gross"] .ph{break-inside:avoid; -webkit-column-break-inside:avoid; margin:0 0 var(--gap); width:100%}
+  body[data-layout="gross"] .ph img{height:auto}
 
   /* ---------- Lightbox ---------- */
-  #lb{position:fixed; inset:0; z-index:60; background:rgba(22,19,15,.96); display:none; flex-direction:column}
+  #lb{position:fixed; inset:0; z-index:60; background:rgba(12,12,14,.97); display:none; flex-direction:column}
   #lb.show{display:flex}
-  #lb .lb-top{display:flex; align-items:center; gap:12px; padding:14px 16px; color:#f4efe7}
-  #lb .lb-top .meta{font-size:13px; color:#cabfac; letter-spacing:.04em}
+  #lb .lb-top{display:flex; align-items:center; gap:12px; padding:14px 16px; color:#f3f3f3}
+  #lb .lb-top .meta{font-size:13px; color:#bcbcbc}
   #lb .lb-top .sp{margin-left:auto}
-  #lb .lb-btn{border:1px solid rgba(244,239,231,.3); background:rgba(244,239,231,.08); color:#f4efe7;
-    border-radius:999px; padding:9px 15px; font-size:14px; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block}
-  #lb .lb-btn.dl{background:var(--gold); border-color:transparent; color:#fff}
+  #lb .lb-btn{border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.08); color:#fff; border-radius:999px;
+    padding:9px 15px; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block}
+  #lb .lb-btn.dl{background:var(--gold); border-color:transparent; color:#1a1206}
   #lb .lb-stage{flex:1; position:relative; display:flex; align-items:center; justify-content:center; min-height:0; padding:0 8px}
-  #lb img{max-width:96vw; max-height:78vh; object-fit:contain; border-radius:6px; box-shadow:0 20px 60px rgba(0,0,0,.5)}
-  #lb .nav{position:absolute; top:50%; transform:translateY(-50%); width:52px; height:52px; border-radius:50%;
-    border:0; background:rgba(244,239,231,.12); color:#f4efe7; font-size:24px; cursor:pointer; display:flex;
-    align-items:center; justify-content:center}
-  #lb .nav:active{background:rgba(244,239,231,.25)}
+  #lb img{max-width:96vw; max-height:80vh; object-fit:contain; border-radius:6px; box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  #lb .nav{position:absolute; top:50%; transform:translateY(-50%); width:52px; height:52px; border-radius:50%; border:0;
+    background:rgba(255,255,255,.12); color:#fff; font-size:24px; cursor:pointer; display:flex; align-items:center; justify-content:center}
   #lb .prev{left:10px} #lb .next{right:10px}
-  #lb .lb-cap{font-family:"Hoefler Text",Garamond,Georgia,serif; font-style:italic; color:#f4efe7; text-align:center;
-    font-size:clamp(16px,2.4vw,22px); line-height:1.35; padding:16px 22px 26px; max-width:760px; margin:0 auto; min-height:10px}
+  #lb .lb-cap{font-family:var(--font-display); font-style:italic; color:#fff; text-align:center; font-size:clamp(16px,2.4vw,21px);
+    line-height:1.35; padding:15px 22px 24px; max-width:760px; margin:0 auto; min-height:8px}
 
-  /* ---------- Auswahl-Leiste (unten) ---------- */
-  #selbar{position:fixed; left:0; right:0; bottom:0; z-index:50; display:none; justify-content:center; padding:12px;
-    pointer-events:none}
+  /* ---------- Auswahl ---------- */
+  #selbar{position:fixed; left:0; right:0; bottom:0; z-index:50; display:none; justify-content:center; padding:12px; pointer-events:none}
   body.selmode #selbar{display:flex}
-  #selbar .inner{pointer-events:auto; background:var(--ink); color:var(--paper); border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.3);
+  #selbar .inner{pointer-events:auto; background:var(--ink); color:var(--bg); border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,.3);
     display:flex; align-items:center; gap:14px; padding:11px 14px 11px 18px; max-width:560px; width:100%}
   #selbar .cnt{font-weight:700; font-size:14.5px}
   #selbar .sp{margin-left:auto; display:flex; gap:8px}
   #selbar button{border:0; border-radius:11px; padding:11px 15px; font-size:14px; font-weight:700; cursor:pointer}
-  #selbar .dl{background:var(--gold); color:#fff}
-  #selbar .clr{background:rgba(244,239,231,.16); color:var(--paper)}
+  #selbar .dl{background:var(--gold); color:#1a1206}
+  #selbar .clr{background:rgba(125,125,125,.3); color:var(--bg)}
 
-  #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px); z-index:70;
-    background:var(--ink); color:var(--paper); padding:12px 20px; border-radius:999px; font-size:14px; font-weight:600;
-    opacity:0; transition:opacity .3s, transform .3s; pointer-events:none; box-shadow:0 8px 30px rgba(0,0,0,.3)}
+  #toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px); z-index:70; background:var(--ink);
+    color:var(--bg); padding:12px 20px; border-radius:999px; font-size:14px; font-weight:600; opacity:0;
+    transition:opacity .3s, transform .3s; pointer-events:none; box-shadow:0 8px 30px rgba(0,0,0,.3)}
   #toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
-
-  .hidden{display:none !important}
   #loading{text-align:center; color:var(--muted); padding:60px 20px; font-size:15px}
+  .hidden{display:none !important}
 </style>
 </head>
-<body>
+<body data-theme="modern" data-layout="mosaik">
 
 <section id="gate" class="hidden">
   <div class="lock">📔</div>
-  <h1 class="serif">Antjes 60.</h1>
+  <h1 class="disp">Antjes 60.</h1>
   <p>Das Fotoalbum ist passwortgeschützt.</p>
   <input id="pw" type="password" autocomplete="current-password" placeholder="Passwort" />
   <button id="btn-login">Album öffnen</button>
@@ -142,10 +194,28 @@
 <div id="app" class="hidden">
   <header class="bar">
     <div class="bar-row">
-      <div class="bar-title serif">Antjes 60. <small id="bar-count"></small></div>
+      <div class="bar-title disp">Antjes 60. <small id="bar-count"></small></div>
       <div class="bar-actions">
+        <button class="act" id="btn-view">⚙ Ansicht</button>
         <button class="act" id="btn-select">Auswählen</button>
-        <button class="act gold" id="btn-all">⤓ Alle</button>
+        <button class="act solid" id="btn-all">⤓ Alle</button>
+      </div>
+    </div>
+    <div id="viewpanel">
+      <div class="vp-inner">
+        <div class="vp-group"><span>Stil</span>
+          <div class="seg" id="seg-theme">
+            <button data-v="modern">Modern</button><button data-v="editorial">Editorial</button><button data-v="dark">Dunkel</button>
+          </div>
+        </div>
+        <div class="vp-group"><span>Layout</span>
+          <div class="seg" id="seg-layout">
+            <button data-v="mosaik">Mosaik</button><button data-v="raster">Raster</button><button data-v="gross">Groß</button>
+          </div>
+        </div>
+        <div class="vp-group"><span>Größe</span>
+          <input type="range" id="rng-size" min="1" max="6" step="1" />
+        </div>
       </div>
     </div>
     <nav class="chips" id="chips"></nav>
@@ -153,16 +223,19 @@
 
   <section class="hero">
     <div class="kick">Ein Abend in Bildern</div>
-    <h1 class="serif">Antjes 60.</h1>
+    <h1 class="disp">Antjes 60.</h1>
     <div class="sub" id="hero-sub"></div>
-    <div class="hint">Tippe ein Foto, um es groß zu sehen · ⤓ zum Herunterladen</div>
+  </section>
+
+  <section id="winners" class="hidden">
+    <div class="win-head"><h2 class="disp">🏆 Die Gewinner des Abends</h2><div class="rule"></div></div>
+    <div class="win-grid" id="win-grid"></div>
   </section>
 
   <div id="loading">Lädt …</div>
   <main id="sections"></main>
 </div>
 
-<!-- Lightbox -->
 <div id="lb">
   <div class="lb-top">
     <span class="meta" id="lb-meta"></span>
@@ -175,167 +248,155 @@
     <img id="lb-img" alt="" />
     <button class="nav next" id="lb-next" aria-label="weiter">›</button>
   </div>
-  <div class="lb-cap serif" id="lb-cap"></div>
+  <div class="lb-cap disp" id="lb-cap"></div>
 </div>
 
-<!-- Auswahl-Leiste -->
-<div id="selbar">
-  <div class="inner">
-    <span class="cnt" id="sel-count">0 ausgewählt</span>
-    <span class="sp">
-      <button class="clr" id="sel-clear">Aufheben</button>
-      <button class="dl" id="sel-dl">⤓ Herunterladen</button>
-    </span>
-  </div>
-</div>
+<div id="selbar"><div class="inner">
+  <span class="cnt" id="sel-count">0 ausgewählt</span>
+  <span class="sp"><button class="clr" id="sel-clear">Aufheben</button><button class="dl" id="sel-dl">⤓ Herunterladen</button></span>
+</div></div>
 
 <div id="toast"></div>
 
 <script>
 const $ = s => document.querySelector(s);
 const PHASE_FALLBACK = ['geburtstag','werdersee','preparty','auftritt','party','breakfast','weitere'];
-let PHOTOS = [];          // flache Liste in Albumreihenfolge (für Lightbox-Navigation)
-let selectMode = false;
+let PHOTOS = [], selectMode = false;
 const selected = new Set();
+
+// ---------- Ansicht-Einstellungen (gespeichert) ----------
+const store = {
+  get theme(){ return localStorage.getItem('alb_theme') || 'modern'; },
+  get layout(){ return localStorage.getItem('alb_layout') || 'mosaik'; },
+  get size(){ return parseInt(localStorage.getItem('alb_size') || '0') || 0; },
+};
+function defaultSize(){ const w=innerWidth; return w<560?2 : w<920?3 : 4; }
+function applyTheme(t){ document.body.dataset.theme=t; localStorage.setItem('alb_theme',t); markSeg('seg-theme',t);
+  document.querySelector('meta[name=theme-color]').setAttribute('content', getComputedStyle(document.body).backgroundColor); }
+function applyLayout(l){ document.body.dataset.layout=l; localStorage.setItem('alb_layout',l); markSeg('seg-layout',l); repointImages(); }
+function applySize(n){ n=Math.max(1,Math.min(6,n)); localStorage.setItem('alb_size',String(n));
+  document.body.style.setProperty('--cols', n); document.body.style.setProperty('--colsBig', Math.max(1,n-2));
+  const r=$('#rng-size'); if(r) r.value=n; }
+function markSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=> b.classList.toggle('on', b.dataset.v===v)); }
+// in „Groß" größere Bildquelle, sonst kleines Thumbnail
+function srcFor(p){ return document.body.dataset.layout==='gross' ? '/photo/'+p.id : '/photo/'+p.id+'?w=400'; }
+function repointImages(){ document.querySelectorAll('.ph img').forEach(img=>{ const want=srcFor({id:img.dataset.id}); if(!img.src.endsWith(want)) img.src=want; }); }
 
 // ---------- Auth ----------
 async function init(){
-  let st;
-  try{ st = await (await fetch('/api/album/state')).json(); }
-  catch(e){ st = {enabled:false, authed:false}; }
+  applyTheme(store.theme); applyLayout(store.layout); applySize(store.size || defaultSize());
+  let st; try{ st = await (await fetch('/api/album/state')).json(); }catch(e){ st={enabled:false,authed:false}; }
   if(st.authed){ showApp(); return; }
   $('#gate').classList.remove('hidden');
-  if(!st.enabled){
-    $('#pw').disabled = true; $('#btn-login').disabled = true;
-    $('#gate-note').textContent = 'Das Album wurde noch nicht freigeschaltet.';
-  }
+  if(!st.enabled){ $('#pw').disabled=true; $('#btn-login').disabled=true; $('#gate-note').textContent='Das Album wurde noch nicht freigeschaltet.'; }
 }
 async function login(){
-  const pw = $('#pw').value;
-  if(!pw){ return; }
-  const fd = new FormData(); fd.append('pw', pw);
-  $('#login-err').textContent = '';
-  try{
-    const r = await fetch('/api/album/login', {method:'POST', body:fd});
+  const pw=$('#pw').value; if(!pw) return;
+  const fd=new FormData(); fd.append('pw',pw); $('#login-err').textContent='';
+  try{ const r=await fetch('/api/album/login',{method:'POST',body:fd});
     if(r.ok){ $('#gate').classList.add('hidden'); showApp(); }
-    else if(r.status===401){ $('#login-err').textContent = 'Falsches Passwort'; }
-    else { $('#login-err').textContent = 'Album ist noch nicht freigeschaltet.'; }
-  }catch(e){ $('#login-err').textContent = 'Verbindungsfehler'; }
+    else if(r.status===401){ $('#login-err').textContent='Falsches Passwort'; }
+    else { $('#login-err').textContent='Album ist noch nicht freigeschaltet.'; }
+  }catch(e){ $('#login-err').textContent='Verbindungsfehler'; }
 }
 $('#btn-login').addEventListener('click', login);
 $('#pw').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
 
-// ---------- Galerie laden ----------
+// ---------- Galerie ----------
 async function showApp(){
   $('#app').classList.remove('hidden');
   let data;
-  try{
-    const r = await fetch('/api/album/photos');
-    if(r.status===401){ $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); return; }  // Sitzung abgelaufen
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    data = await r.json();
-  }catch(e){ $('#loading').textContent = 'Konnte das Album nicht laden.'; return; }
+  try{ const r=await fetch('/api/album/photos');
+    if(r.status===401){ $('#app').classList.add('hidden'); $('#gate').classList.remove('hidden'); return; }
+    if(!r.ok) throw new Error('HTTP '+r.status); data=await r.json();
+  }catch(e){ $('#loading').textContent='Konnte das Album nicht laden.'; return; }
   $('#loading').classList.add('hidden');
-  const order = (data.phases && data.phases.length) ? data.phases : PHASE_FALLBACK.map(k=>({key:k,label:k}));
-  const labels = {}; order.forEach(p=> labels[p.key]=p.label);
-  const byPhase = {}; (data.photos||[]).forEach(p=>{ (byPhase[p.phase] = byPhase[p.phase] || []).push(p); });
+  const order=(data.phases&&data.phases.length)?data.phases:PHASE_FALLBACK.map(k=>({key:k,label:k}));
+  const labels={}; order.forEach(p=>labels[p.key]=p.label);
+  const byPhase={}; (data.photos||[]).forEach(p=>{(byPhase[p.phase]=byPhase[p.phase]||[]).push(p);});
+  $('#bar-count').textContent=(data.count||0)+' Fotos';
+  $('#hero-sub').textContent=(data.count||0)+' Momente · chronologisch erzählt';
 
-  $('#bar-count').textContent = (data.count||0) + ' Fotos';
-  $('#hero-sub').textContent = (data.count||0) + ' Momente · chronologisch erzählt';
-
-  const sectionsEl = $('#sections'); sectionsEl.innerHTML='';
-  const chipsEl = $('#chips'); chipsEl.innerHTML='';
-  PHOTOS = [];
-  let chapter = 0;
+  const sectionsEl=$('#sections'); sectionsEl.innerHTML=''; const chipsEl=$('#chips'); chipsEl.innerHTML=''; PHOTOS=[];
+  let chapter=0;
   order.forEach(ph=>{
-    const list = byPhase[ph.key]; if(!list || !list.length) return;
-    chapter++;
-    const secId = 'sec-'+ph.key;
-    // Sprungmarke
-    const chip = document.createElement('button'); chip.className='chip'; chip.textContent = labels[ph.key]||ph.key;
-    chip.addEventListener('click', ()=> document.getElementById(secId).scrollIntoView({behavior:'smooth', block:'start'}));
+    const list=byPhase[ph.key]; if(!list||!list.length) return; chapter++;
+    const secId='sec-'+ph.key;
+    const chip=document.createElement('button'); chip.className='chip'; chip.textContent=labels[ph.key]||ph.key;
+    chip.addEventListener('click',()=>document.getElementById(secId).scrollIntoView({behavior:'smooth',block:'start'}));
     chipsEl.appendChild(chip);
-    // Sektion
-    const sec = document.createElement('section'); sec.className='sec'; sec.id=secId;
-    const num = String(chapter).padStart(2,'0');
-    sec.innerHTML = `<div class="sec-head"><div class="kick">Kapitel ${num}</div>
-      <h2 class="serif">${escapeHtml(labels[ph.key]||ph.key)} <span class="cnt">${list.length} Foto${list.length===1?'':'s'}</span></h2>
+    const sec=document.createElement('section'); sec.className='sec'; sec.id=secId;
+    const num=String(chapter).padStart(2,'0');
+    sec.innerHTML=`<div class="sec-head"><div class="kick">Kapitel ${num}</div>
+      <h2 class="disp">${esc(labels[ph.key]||ph.key)} <span class="cnt">${list.length} Foto${list.length===1?'':'s'}</span></h2>
       <div class="rule"></div></div><div class="grid"></div>`;
-    const grid = sec.querySelector('.grid');
+    const grid=sec.querySelector('.grid');
     list.forEach(p=>{
-      const idx = PHOTOS.length; PHOTOS.push(p);
-      const fig = document.createElement('figure'); fig.className='ph'; fig.dataset.idx=idx; fig.dataset.id=p.id;
-      const cap = p.comment ? `<figcaption class="cap">„${escapeHtml(p.comment)}"</figcaption>` : '';
-      fig.innerHTML = `<span class="pick">✓</span><img loading="lazy" src="/photo/${p.id}?w=400" alt="">${cap}`;
-      const img = fig.querySelector('img');
-      img.addEventListener('error', ()=>{ fig.style.display='none'; });  // fehlendes Bild ausblenden
-      fig.addEventListener('click', ()=>{
-        if(selectMode){ toggleSelect(fig); }
-        else openLightbox(idx);
-      });
-      grid.appendChild(fig);
-      io.observe(fig);
+      const idx=PHOTOS.length; PHOTOS.push(p);
+      const fig=document.createElement('figure'); fig.className='ph'; fig.dataset.idx=idx; fig.dataset.id=p.id;
+      fig.innerHTML=`<span class="pick">✓</span><img loading="lazy" data-id="${p.id}" src="${srcFor(p)}" alt="">`+(p.comment?`<figcaption class="cap">${esc(p.comment)}</figcaption>`:'');
+      fig.querySelector('img').addEventListener('error',()=>{ fig.style.display='none'; });
+      fig.addEventListener('click',()=>{ selectMode?toggleSelect(fig):openLightbox(idx); });
+      grid.appendChild(fig); io.observe(fig);
     });
     sectionsEl.appendChild(sec);
   });
+  loadWinners();
+}
+function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function loadWinners(){
+  let cer; try{ cer=await (await fetch('/api/ceremony')).json(); }catch(e){ return; }
+  const w=cer&&cer.winners||{}; const cards=[];
+  if(w.commonality) cards.push({id:w.commonality.id, badge:'Originellste Gemeinsamkeit', txt:w.commonality.text||''});
+  if(w.photo) cards.push({id:w.photo.id, badge:'Originellstes Foto', txt:w.photo.comment||''});
+  if(!cards.length) return;
+  const g=$('#win-grid'); g.innerHTML='';
+  cards.forEach(c=>{
+    const el=document.createElement('div'); el.className='win-card';
+    el.innerHTML=`<img src="/photo/${c.id}?w=400" alt=""><div class="win-meta"><span class="badge">🏆 ${esc(c.badge)}</span>
+      <div class="txt${c.txt?'':' empty'}">${c.txt?'„'+esc(c.txt)+'"':'ohne Kommentar'}</div></div>`;
+    el.addEventListener('click',()=>{ const i=PHOTOS.findIndex(p=>p.id===c.id); if(i>=0) openLightbox(i); });
+    g.appendChild(el);
+  });
+  $('#winners').classList.remove('hidden');
 }
 
-function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-
-// Einblenden beim Scrollen
-const io = new IntersectionObserver((es)=>{ es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, {rootMargin:'120px'});
+const io=new IntersectionObserver(es=>{ es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); },{rootMargin:'150px'});
 
 // ---------- Lightbox ----------
-let lbIdx = -1;
-function openLightbox(idx){
-  lbIdx = idx; const p = PHOTOS[idx]; if(!p) return;
-  $('#lb-img').src = '/photo/'+p.id;
-  $('#lb-cap').textContent = p.comment ? '„'+p.comment+'"' : '';
-  $('#lb-meta').textContent = (idx+1) + ' / ' + PHOTOS.length;
-  const dl = $('#lb-dl'); dl.href = '/photo/'+p.id+'?full=1'; dl.setAttribute('download', 'Antje-60-'+(p.phase||'foto')+'-'+(idx+1)+'.jpg');  // volle Auflösung
-  $('#lb').classList.add('show');
-}
-function lbStep(d){ let n = lbIdx + d; if(n<0) n=PHOTOS.length-1; if(n>=PHOTOS.length) n=0; openLightbox(n); }
+let lbIdx=-1;
+function openLightbox(idx){ const p=PHOTOS[idx]; if(!p) return; lbIdx=idx;
+  $('#lb-img').src='/photo/'+p.id; $('#lb-cap').textContent=p.comment?'„'+p.comment+'"':'';
+  $('#lb-meta').textContent=(idx+1)+' / '+PHOTOS.length;
+  const dl=$('#lb-dl'); dl.href='/photo/'+p.id+'?full=1'; dl.setAttribute('download','Antje-60-'+(p.phase||'foto')+'-'+(idx+1)+'.jpg');
+  $('#lb').classList.add('show'); }
+function lbStep(d){ let n=lbIdx+d; if(n<0)n=PHOTOS.length-1; if(n>=PHOTOS.length)n=0; openLightbox(n); }
 function closeLb(){ $('#lb').classList.remove('show'); $('#lb-img').src=''; lbIdx=-1; }
-$('#lb-close').addEventListener('click', closeLb);
-$('#lb-prev').addEventListener('click', e=>{ e.stopPropagation(); lbStep(-1); });
-$('#lb-next').addEventListener('click', e=>{ e.stopPropagation(); lbStep(1); });
-$('#lb').addEventListener('click', e=>{ if(e.target.id==='lb' || e.target.classList.contains('lb-stage')) closeLb(); });
-document.addEventListener('keydown', e=>{
-  if(!$('#lb').classList.contains('show')) return;
-  if(e.key==='Escape') closeLb();
-  else if(e.key==='ArrowLeft') lbStep(-1);
-  else if(e.key==='ArrowRight') lbStep(1);
-});
+$('#lb-close').addEventListener('click',closeLb);
+$('#lb-prev').addEventListener('click',e=>{e.stopPropagation();lbStep(-1);});
+$('#lb-next').addEventListener('click',e=>{e.stopPropagation();lbStep(1);});
+$('#lb').addEventListener('click',e=>{ if(e.target.id==='lb'||e.target.classList.contains('lb-stage')) closeLb(); });
+document.addEventListener('keydown',e=>{ if(!$('#lb').classList.contains('show'))return;
+  if(e.key==='Escape')closeLb(); else if(e.key==='ArrowLeft')lbStep(-1); else if(e.key==='ArrowRight')lbStep(1); });
 
 // ---------- Auswahl + Download ----------
-$('#btn-select').addEventListener('click', ()=>{
-  selectMode = !selectMode;
-  document.body.classList.toggle('selmode', selectMode);
-  $('#btn-select').classList.toggle('on', selectMode);
-  $('#btn-select').textContent = selectMode ? 'Fertig' : 'Auswählen';
-  if(!selectMode) clearSel();
-});
-function toggleSelect(fig){
-  const id = fig.dataset.id;
-  if(selected.has(id)){ selected.delete(id); fig.classList.remove('sel'); }
-  else { selected.add(id); fig.classList.add('sel'); }
-  updateSelBar();
-}
+$('#btn-select').addEventListener('click',()=>{ selectMode=!selectMode; document.body.classList.toggle('selmode',selectMode);
+  $('#btn-select').classList.toggle('on',selectMode); $('#btn-select').textContent=selectMode?'Fertig':'Auswählen'; if(!selectMode) clearSel(); });
+function toggleSelect(fig){ const id=fig.dataset.id; if(selected.has(id)){selected.delete(id);fig.classList.remove('sel');}else{selected.add(id);fig.classList.add('sel');} updateSelBar(); }
 function clearSel(){ selected.clear(); document.querySelectorAll('.ph.sel').forEach(f=>f.classList.remove('sel')); updateSelBar(); }
-function updateSelBar(){ $('#sel-count').textContent = selected.size + ' ausgewählt'; }
-$('#sel-clear').addEventListener('click', clearSel);
-$('#sel-dl').addEventListener('click', ()=>{
-  if(!selected.size){ toast('Erst Fotos antippen'); return; }
-  download('/api/album/zip?ids=' + [...selected].join(','), selected.size + ' Fotos werden gepackt …');
-});
-$('#btn-all').addEventListener('click', ()=>{
-  download('/api/album/zip', 'Alle Fotos werden gepackt – das kann einen Moment dauern …');
-});
-function download(url, msg){ toast(msg); const a=document.createElement('a'); a.href=url; document.body.appendChild(a); a.click(); a.remove(); }
+function updateSelBar(){ $('#sel-count').textContent=selected.size+' ausgewählt'; }
+$('#sel-clear').addEventListener('click',clearSel);
+$('#sel-dl').addEventListener('click',()=>{ if(!selected.size){toast('Erst Fotos antippen');return;} download('/api/album/zip?ids='+[...selected].join(','), selected.size+' Fotos werden gepackt …'); });
+$('#btn-all').addEventListener('click',()=> download('/api/album/zip','Alle Fotos werden gepackt – das dauert einen Moment …'));
+function download(url,msg){ toast(msg); const a=document.createElement('a'); a.href=url; document.body.appendChild(a); a.click(); a.remove(); }
+let _tt; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),3500); }
 
-let _tt;
-function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'), 3500); }
+// ---------- Ansicht-Steuerung ----------
+$('#btn-view').addEventListener('click',()=>{ const p=$('#viewpanel'); p.classList.toggle('open'); $('#btn-view').classList.toggle('on', p.classList.contains('open')); });
+$('#seg-theme').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) applyTheme(b.dataset.v); });
+$('#seg-layout').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) applyLayout(b.dataset.v); });
+$('#rng-size').addEventListener('input',e=> applySize(parseInt(e.target.value)));
 
 init();
 </script>

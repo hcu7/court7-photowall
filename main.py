@@ -90,9 +90,9 @@ PHASE_ORDER = ["geburtstag", "werdersee", "preparty", "auftritt", "party", "brea
 PHASE_LABELS = {
     "geburtstag": "Donnerstag · Geburtstagsmorgen",
     "werdersee": "Werdersee",
-    "preparty": "Pre-Party",
+    "preparty": "Goldene Stunde",
     "auftritt": "Musikalische Einlage",
-    "party": "Die lange Nacht",
+    "party": "Die Tanznacht",
     "breakfast": "Frühstück im Grünen",
     "weitere": "Weitere",
 }
