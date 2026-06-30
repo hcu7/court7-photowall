@@ -275,7 +275,7 @@ function applyTheme(t){ document.body.dataset.theme=t; localStorage.setItem('alb
   document.querySelector('meta[name=theme-color]').setAttribute('content', getComputedStyle(document.body).backgroundColor); }
 function applyLayout(l){ document.body.dataset.layout=l; localStorage.setItem('alb_layout',l); markSeg('seg-layout',l); repointImages(); }
 function applySize(n){ n=Math.max(1,Math.min(6,n)); localStorage.setItem('alb_size',String(n));
-  document.body.style.setProperty('--cols', n); document.body.style.setProperty('--colsBig', Math.max(1,n-2));
+  document.body.style.setProperty('--cols', String(n)); document.body.style.setProperty('--colsBig', String(Math.max(1,n-2)));
   const r=$('#rng-size'); if(r) r.value=n; }
 function markSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=> b.classList.toggle('on', b.dataset.v===v)); }
 // in „Groß" größere Bildquelle, sonst kleines Thumbnail
