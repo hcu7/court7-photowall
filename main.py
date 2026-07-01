@@ -75,6 +75,7 @@ FRONT_CAMERA = os.environ.get("FRONT_CAMERA", "1") not in ("0", "false", "False"
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 MAX_DIM = int(os.environ.get("MAX_DIM", "2200"))
 DISPLAY_DIM = int(os.environ.get("DISPLAY_DIM", "1600"))   # an den TV ausgeliefertes Foto (klein -> schneller Decode auf Fire TV)
+MED_DIM = int(os.environ.get("MED_DIM", "1000"))           # scharfe Album-Miniatur (lazy erzeugt + gecacht)
 BG_DIM = int(os.environ.get("BG_DIM", "400"))              # winziger, vorab erzeugter Blur-Hintergrund
 JPEG_QUALITY = int(os.environ.get("JPEG_QUALITY", "85"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "40")) * 1024 * 1024
@@ -171,6 +172,7 @@ def init_db():
     _add_col("photo_score DOUBLE PRECISION", "photo_score REAL")
     _add_col("photo_desc TEXT", "photo_desc TEXT")
     _add_col("data_bg BYTEA", "data_bg BLOB")   # vorab erzeugter Blur-Hintergrund (klein)
+    _add_col("data_med BYTEA", "data_med BLOB")  # scharfe Album-Miniatur (~1000px, lazy erzeugt)
     _add_col("data_full BYTEA", "data_full BLOB")  # Original in voller Aufloesung (q95) — nur fuer Downloads (ab jetzt)
     _add_col("category TEXT", "category TEXT")          # Phase: geburtstag|werdersee|preparty|auftritt|party|breakfast
     _add_col("cat_source TEXT", "cat_source TEXT")      # ai | ai_fail | manual
@@ -230,6 +232,15 @@ def db_photo_bg(pid: str):
 
 def db_set_bg(pid: str, data_bg: bytes):
     _exec("UPDATE photos SET data_bg=? WHERE id=?", (data_bg, pid))
+
+
+def db_photo_med(pid: str):
+    row = _exec(f"SELECT data_med FROM photos WHERE id=? AND hidden={_FALSE}", (pid,), "one")
+    return bytes(row[0]) if row and row[0] is not None else None
+
+
+def db_set_med(pid: str, data_med: bytes):
+    _exec("UPDATE photos SET data_med=? WHERE id=?", (data_med, pid))
 
 
 def db_exists(pid: str) -> bool:
@@ -370,6 +381,18 @@ def get_photo(pid: str, w: int = 0, full: int = 0):
         if data is None:
             raise HTTPException(status_code=404, detail="Not found")
         return Response(content=data, media_type="image/jpeg", headers=hdr)
+    if w and w > 500:  # scharfe Album-Miniatur (~1000px): lazy erzeugen + cachen (aus dem Anzeige-Foto)
+        med = db_photo_med(pid)
+        if med is None:
+            base = db_photo(pid)
+            if base is None:
+                raise HTTPException(status_code=404, detail="Not found")
+            try:
+                med = _resize_jpeg(base, MED_DIM, 82)
+            except Exception:
+                med = base
+            db_set_med(pid, med)
+        return Response(content=med, media_type="image/jpeg", headers=hdr)
     if w:  # winziger Blur-Hintergrund: vorab erzeugt; Altbestand einmalig nachziehen + speichern -> nie Resize-Stau
         bg = db_photo_bg(pid)
         if bg is None:
