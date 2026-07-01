@@ -47,7 +47,7 @@ except Exception:  # pragma: no cover
     _TZ = None
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from PIL import Image, ImageDraw, ImageOps
@@ -227,6 +227,16 @@ def _mime_for_name(fname: str) -> str:
 
 def _ext_for_mime(mime: str) -> str:
     return _EXT_BY_MIME.get((mime or "").lower(), "mp4")
+
+
+_VIDEO_MIME_RE = re.compile(r"^video/[a-z0-9][a-z0-9!#$&^_.+-]{0,40}$")
+_MEDIA_CHUNK = 4 * 1024 * 1024   # 4 MB Streaming-Häppchen -> Video wird NIE komplett in den RAM geladen
+
+
+def _clean_mime(mime: str) -> str:
+    """MIME auf 'type/subtype' reduzieren + gegen Allowlist prüfen (kein Header-Injection, kein Müll)."""
+    m = (mime or "").split(";")[0].strip().lower()
+    return m if _VIDEO_MIME_RE.match(m) else "video/mp4"
 
 
 def setting_get(key: str, default: str = "") -> str:
@@ -464,7 +474,7 @@ def get_photo(pid: str, w: int = 0, full: int = 0):
 @app.get("/media/{pid}")
 def get_media(pid: str, request: Request, dl: int = 0):
     """Video ausliefern (aus data_full) mit HTTP-Range-Support -> Abspielen/Seeken im Browser.
-    Es wird immer nur der angeforderte Byte-Bereich aus der DB geholt (substring) -> speicherschonend."""
+    Wird in 4-MB-Häppchen aus der DB gestreamt (substring) -> nie das ganze Video im RAM."""
     if not ID_RE.match(pid):
         raise HTTPException(status_code=404, detail="Not found")
     if PG:
@@ -473,10 +483,10 @@ def get_media(pid: str, request: Request, dl: int = 0):
         row = _exec(f"SELECT mime, length(data_full) FROM photos WHERE id=? AND hidden={_FALSE}", (pid,), "one")
     if not row or row[1] is None:
         raise HTTPException(status_code=404, detail="Not found")
-    mime = row[0] or "video/mp4"
+    mime = _clean_mime(row[0])
     total = int(row[1])
 
-    def fetch(start: int, length: int) -> bytes:
+    def _slice(start: int, length: int) -> bytes:
         if length <= 0:
             return b""
         if PG:  # substring: 1-basiert
@@ -485,25 +495,39 @@ def get_media(pid: str, request: Request, dl: int = 0):
             r = _exec("SELECT substr(data_full, ?, ?) FROM photos WHERE id=?", (start + 1, length, pid), "one")
         return bytes(r[0]) if r and r[0] is not None else b""
 
+    def stream(start: int, length: int):
+        pos, remaining = start, length
+        while remaining > 0:
+            chunk = _slice(pos, min(_MEDIA_CHUNK, remaining))
+            if not chunk:
+                break
+            yield chunk
+            pos += len(chunk)
+            remaining -= len(chunk)
+
     dispo = (f'attachment; filename="Antje-60-video-{pid[-8:]}.{_ext_for_mime(mime)}"' if dl else "inline")
     base_hdr = {"Accept-Ranges": "bytes", "Content-Disposition": dispo,
                 "Cache-Control": "public, max-age=31536000, immutable"}
     rng = request.headers.get("range") or request.headers.get("Range")
-    if rng and rng.strip().startswith("bytes="):
+    if total > 0 and rng and rng.strip().startswith("bytes="):
         try:
-            part = rng.split("=", 1)[1].split(",")[0]
+            part = rng.split("=", 1)[1].split(",")[0]   # nur der erste Bereich (Multi-Range wird nicht gebraucht)
             s, _, e = part.partition("-")
-            start = int(s) if s.strip() else 0
-            end = int(e) if e.strip() else total - 1
+            s, e = s.strip(), e.strip()
+            if s == "" and e:                # Suffix-Range 'bytes=-N' -> die LETZTEN N Bytes
+                start = max(0, total - int(e)); end = total - 1
+            else:
+                start = int(s); end = int(e) if e else total - 1
             end = min(end, total - 1)
             if start < 0 or start > end or start >= total:
                 raise ValueError
         except Exception:
-            return Response(status_code=416, headers={"Content-Range": f"bytes */{total}"})
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{total}", "Accept-Ranges": "bytes"})
         length = end - start + 1
         hdr = dict(base_hdr, **{"Content-Range": f"bytes {start}-{end}/{total}", "Content-Length": str(length)})
-        return Response(content=fetch(start, length), status_code=206, media_type=mime, headers=hdr)
-    return Response(content=fetch(0, total), media_type=mime, headers=base_hdr)
+        return StreamingResponse(stream(start, length), status_code=206, media_type=mime, headers=hdr)
+    hdr = dict(base_hdr, **{"Content-Length": str(total)})
+    return StreamingResponse(stream(0, total), media_type=mime, headers=hdr)
 
 
 @app.post("/api/upload")
@@ -521,7 +545,7 @@ async def upload(file: UploadFile = File(...), comment: str = Form("")):
     if is_video:  # Video: roh speichern (nicht auf dem TV, aber im Album abspielbar)
         if len(raw) > MAX_VIDEO_BYTES:
             raise HTTPException(status_code=413, detail="Video zu groß")
-        mime = ctype if ctype.startswith("video/") else _mime_for_name(fname)
+        mime = _clean_mime(ctype) if ctype.startswith("video/") else _mime_for_name(fname)
         db_insert_video(pid, _video_placeholder(), raw, mime, text, sort)
         return {"id": pid, "kind": "video", "url": f"/media/{pid}", "comment": text}
 
