@@ -68,15 +68,6 @@
   .chip{border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:999px;
     padding:7px 13px; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap; flex:0 0 auto}
 
-  /* ---------- Steuerung (Layout + Größe, direkt in der Leiste) ---------- */
-  .controls{display:flex; align-items:center; gap:16px; flex-wrap:wrap; max-width:1400px; margin:0 auto; padding:1px 16px 11px}
-  .seg{display:inline-flex; background:var(--card); border:1px solid var(--line); border-radius:11px; padding:3px; gap:2px}
-  .seg button{border:0; background:transparent; color:var(--muted); font:inherit; font-size:13.5px; font-weight:600;
-    padding:7px 15px; border-radius:8px; cursor:pointer}
-  .seg button.on{background:var(--accent); color:#fff}
-  .sizer{display:flex; align-items:center; gap:9px; font-size:10.5px; color:var(--muted); font-weight:700; letter-spacing:.08em; text-transform:uppercase}
-  .sizer input[type=range]{width:130px; accent-color:var(--gold)}
-
   /* ---------- Hero ---------- */
   .hero{text-align:center; padding:40px 20px 24px; max-width:1400px; margin:0 auto}
   .hero .kick{font-size:12px; letter-spacing:.34em; text-transform:uppercase; color:var(--gold); font-weight:700}
@@ -192,12 +183,6 @@
         <button class="act" id="btn-select">Auswählen</button>
         <button class="act solid" id="btn-all">⤓ Alle</button>
       </div>
-    </div>
-    <div class="controls">
-      <div class="seg" id="seg-layout">
-        <button data-v="mosaik">Mosaik</button><button data-v="raster">Raster</button>
-      </div>
-      <label class="sizer"><span>klein</span><input type="range" id="rng-size" min="1" max="6" step="1" /><span>groß</span></label>
     </div>
     <nav class="chips" id="chips"></nav>
   </header>
@@ -370,10 +355,6 @@ $('#sel-dl').addEventListener('click',()=>{ if(!selected.size){toast('Erst Fotos
 $('#btn-all').addEventListener('click',()=> download('/api/album/zip','Alle Fotos werden gepackt – das dauert einen Moment …'));
 function download(url,msg){ toast(msg); const a=document.createElement('a'); a.href=url; document.body.appendChild(a); a.click(); a.remove(); }
 let _tt; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),3500); }
-
-// ---------- Ansicht-Steuerung (Layout + Größe direkt in der Leiste) ----------
-$('#seg-layout').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) applyLayout(b.dataset.v); });
-$('#rng-size').addEventListener('input',e=> applyCols(7 - parseInt(e.target.value)));
 
 init();
 </script>
