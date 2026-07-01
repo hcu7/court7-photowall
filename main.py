@@ -50,7 +50,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageOps
 from starlette.background import BackgroundTask
 
 try:
@@ -79,6 +79,8 @@ MED_DIM = int(os.environ.get("MED_DIM", "1000"))           # scharfe Album-Minia
 BG_DIM = int(os.environ.get("BG_DIM", "400"))              # winziger, vorab erzeugter Blur-Hintergrund
 JPEG_QUALITY = int(os.environ.get("JPEG_QUALITY", "85"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "40")) * 1024 * 1024
+MAX_VIDEO_BYTES = int(os.environ.get("MAX_VIDEO_MB", "200")) * 1024 * 1024
+_VIDEO_EXT = (".mp4", ".mov", ".m4v", ".webm", ".3gp", ".avi", ".mkv")
 Image.MAX_IMAGE_PIXELS = 30_000_000   # Decompression-Bomb-Schutz: PIL bricht hart bei >2x (~60 MP) ab
 MAX_COMMENT = 280
 APP_BOOT = str(int(time.time()))  # ändert sich bei jedem (Re)Deploy -> TV lädt automatisch neu
@@ -176,6 +178,8 @@ def init_db():
     _add_col("data_full BYTEA", "data_full BLOB")  # Original in voller Aufloesung (q95) — nur fuer Downloads (ab jetzt)
     _add_col("category TEXT", "category TEXT")          # Phase: geburtstag|werdersee|preparty|auftritt|party|breakfast
     _add_col("cat_source TEXT", "cat_source TEXT")      # ai | ai_fail | manual
+    _add_col("kind TEXT", "kind TEXT")                  # NULL/photo = Foto, 'video' = Video (data_full = Videodatei)
+    _add_col("mime TEXT", "mime TEXT")                  # bei Videos der MIME-Type (video/mp4 ...)
     _exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)")
 
 
@@ -189,6 +193,40 @@ def _resize_jpeg(raw: bytes, maxdim: int, quality: int) -> bytes:
     b = io.BytesIO()
     im.save(b, "JPEG", quality=quality, optimize=True)
     return b.getvalue()
+
+
+_VID_POSTER = None
+
+
+def _video_placeholder() -> bytes:
+    """Dunkle Kachel mit Play-Dreieck — dient Videos als `data` (Spalte ist NOT NULL) + Poster-Fallback."""
+    global _VID_POSTER
+    if _VID_POSTER is None:
+        im = Image.new("RGB", (960, 720), (24, 22, 19))
+        d = ImageDraw.Draw(im)
+        cx, cy, s = 480, 360, 92
+        d.polygon([(cx - s * 0.55, cy - s), (cx - s * 0.55, cy + s), (cx + s, cy)], fill=(244, 239, 231))
+        b = io.BytesIO()
+        im.save(b, "JPEG", quality=80)
+        _VID_POSTER = b.getvalue()
+    return _VID_POSTER
+
+
+_MIME_BY_EXT = {".mov": "video/quicktime", ".webm": "video/webm", ".m4v": "video/x-m4v",
+                ".3gp": "video/3gpp", ".avi": "video/x-msvideo", ".mkv": "video/x-matroska"}
+_EXT_BY_MIME = {"video/quicktime": "mov", "video/webm": "webm", "video/x-m4v": "m4v",
+                "video/3gpp": "3gp", "video/x-msvideo": "avi", "video/x-matroska": "mkv"}
+
+
+def _mime_for_name(fname: str) -> str:
+    for ext, m in _MIME_BY_EXT.items():
+        if fname.endswith(ext):
+            return m
+    return "video/mp4"
+
+
+def _ext_for_mime(mime: str) -> str:
+    return _EXT_BY_MIME.get((mime or "").lower(), "mp4")
 
 
 def setting_get(key: str, default: str = "") -> str:
@@ -211,6 +249,16 @@ def db_insert(pid: str, data: bytes, data_full: bytes, data_bg: bytes, comment: 
     _exec(
         "INSERT INTO photos (id, data, data_full, data_bg, comment, sort, created) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (pid, data, data_full, data_bg, comment, sort, sort),
+    )
+
+
+def db_insert_video(pid: str, poster: bytes, video: bytes, mime: str, comment: str, sort: float):
+    # Video: Rohdatei in data_full, Platzhalter-Poster in data. scored/backed_up=TRUE + category gesetzt,
+    # damit der Worker (Scoring/Kategorisierung/Drive-Backup) das Video ueberspringt.
+    _exec(
+        f"INSERT INTO photos (id, data, data_full, comment, sort, created, kind, mime, scored, category, cat_source, backed_up) "
+        f"VALUES (?, ?, ?, ?, ?, ?, 'video', ?, {_TRUE}, 'weitere', 'video', {_TRUE})",
+        (pid, poster, video, comment, sort, sort, mime),
     )
 
 
@@ -248,8 +296,10 @@ def db_exists(pid: str) -> bool:
 
 
 def db_list():
+    # Videos werden NICHT auf dem TV gezeigt -> nur Fotos (kind NULL/'photo').
     return _exec(
-        f"SELECT id, comment FROM photos WHERE hidden={_FALSE} ORDER BY sort ASC, id ASC",
+        f"SELECT id, comment FROM photos WHERE hidden={_FALSE} AND (kind IS NULL OR kind='photo') "
+        f"ORDER BY sort ASC, id ASC",
         (),
         "all",
     ) or []
@@ -320,9 +370,9 @@ def _phase_key(cat) -> str:
 
 
 def _album_rows():
-    """Alle sichtbaren Fotos, sortiert nach Phase (chronologisch) dann Upload-Zeit."""
+    """Alle sichtbaren Medien (Fotos + Videos), sortiert nach Phase (chronologisch) dann Upload-Zeit."""
     rows = _exec(
-        f"SELECT id, comment, category, created FROM photos WHERE hidden={_FALSE}", (), "all"
+        f"SELECT id, comment, category, created, kind, mime FROM photos WHERE hidden={_FALSE}", (), "all"
     ) or []
     order = {k: i for i, k in enumerate(PHASE_ORDER)}
     return sorted(rows, key=lambda r: (order.get(_phase_key(r[2]), len(PHASE_ORDER)), r[3] or 0, r[0]))
@@ -411,11 +461,70 @@ def get_photo(pid: str, w: int = 0, full: int = 0):
     return Response(content=data, media_type="image/jpeg", headers=hdr)
 
 
+@app.get("/media/{pid}")
+def get_media(pid: str, request: Request, dl: int = 0):
+    """Video ausliefern (aus data_full) mit HTTP-Range-Support -> Abspielen/Seeken im Browser.
+    Es wird immer nur der angeforderte Byte-Bereich aus der DB geholt (substring) -> speicherschonend."""
+    if not ID_RE.match(pid):
+        raise HTTPException(status_code=404, detail="Not found")
+    if PG:
+        row = _exec(f"SELECT mime, octet_length(data_full) FROM photos WHERE id=%s AND hidden={_FALSE}", (pid,), "one")
+    else:
+        row = _exec(f"SELECT mime, length(data_full) FROM photos WHERE id=? AND hidden={_FALSE}", (pid,), "one")
+    if not row or row[1] is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    mime = row[0] or "video/mp4"
+    total = int(row[1])
+
+    def fetch(start: int, length: int) -> bytes:
+        if length <= 0:
+            return b""
+        if PG:  # substring: 1-basiert
+            r = _exec("SELECT substring(data_full from %s for %s) FROM photos WHERE id=%s", (start + 1, length, pid), "one")
+        else:
+            r = _exec("SELECT substr(data_full, ?, ?) FROM photos WHERE id=?", (start + 1, length, pid), "one")
+        return bytes(r[0]) if r and r[0] is not None else b""
+
+    dispo = (f'attachment; filename="Antje-60-video-{pid[-8:]}.{_ext_for_mime(mime)}"' if dl else "inline")
+    base_hdr = {"Accept-Ranges": "bytes", "Content-Disposition": dispo,
+                "Cache-Control": "public, max-age=31536000, immutable"}
+    rng = request.headers.get("range") or request.headers.get("Range")
+    if rng and rng.strip().startswith("bytes="):
+        try:
+            part = rng.split("=", 1)[1].split(",")[0]
+            s, _, e = part.partition("-")
+            start = int(s) if s.strip() else 0
+            end = int(e) if e.strip() else total - 1
+            end = min(end, total - 1)
+            if start < 0 or start > end or start >= total:
+                raise ValueError
+        except Exception:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{total}"})
+        length = end - start + 1
+        hdr = dict(base_hdr, **{"Content-Range": f"bytes {start}-{end}/{total}", "Content-Length": str(length)})
+        return Response(content=fetch(start, length), status_code=206, media_type=mime, headers=hdr)
+    return Response(content=fetch(0, total), media_type=mime, headers=base_hdr)
+
+
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...), comment: str = Form("")):
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Leere Datei")
+    ctype = (file.content_type or "").lower()
+    fname = (file.filename or "").lower()
+    is_video = ctype.startswith("video/") or fname.endswith(_VIDEO_EXT)
+    text = _clean_comment(comment)
+    pid = _new_id()
+    sort = float(int(time.time() * 1000))
+
+    if is_video:  # Video: roh speichern (nicht auf dem TV, aber im Album abspielbar)
+        if len(raw) > MAX_VIDEO_BYTES:
+            raise HTTPException(status_code=413, detail="Video zu groß")
+        mime = ctype if ctype.startswith("video/") else _mime_for_name(fname)
+        db_insert_video(pid, _video_placeholder(), raw, mime, text, sort)
+        return {"id": pid, "kind": "video", "url": f"/media/{pid}", "comment": text}
+
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei zu groß")
     try:
@@ -426,11 +535,8 @@ async def upload(file: UploadFile = File(...), comment: str = Form("")):
         raise HTTPException(status_code=413, detail="Bild zu groß (Pixelmenge)")
     except Exception:
         raise HTTPException(status_code=400, detail="Kein gültiges Bild")
-
-    pid = _new_id()
-    text = _clean_comment(comment)
-    db_insert(pid, data, data_full, data_bg, text, float(int(time.time() * 1000)))
-    return {"id": pid, "url": f"/photo/{pid}", "comment": text}
+    db_insert(pid, data, data_full, data_bg, text, sort)
+    return {"id": pid, "kind": "photo", "url": f"/photo/{pid}", "comment": text}
 
 
 @app.get("/api/admin/check")
@@ -443,13 +549,14 @@ def admin_check(token: str = Query("")):
 def admin_photos(token: str = Query("")):
     _require_admin(token)
     rows = _exec(
-        f"SELECT id, comment, category, cat_source, created FROM photos WHERE hidden={_FALSE} "
+        f"SELECT id, comment, category, cat_source, created, kind FROM photos WHERE hidden={_FALSE} "
         f"ORDER BY created ASC, id ASC", (), "all",
     ) or []
     return {
         "photos": [
-            {"id": r[0], "url": f"/photo/{r[0]}", "comment": r[1] or "",
-             "category": r[2] or "", "catSource": r[3] or ""}
+            {"id": r[0], "comment": r[1] or "",
+             "category": r[2] or "", "catSource": r[3] or "", "kind": (r[5] or "photo"),
+             "url": (f"/media/{r[0]}" if r[5] == "video" else f"/photo/{r[0]}")}
             for r in rows
         ],
         "phases": [{"key": k, "label": PHASE_LABELS[k]} for k in PHASE_ORDER],
@@ -476,7 +583,8 @@ def admin_dedupe(token: str = Query(""), apply: int = Query(0)):
     apply=0 -> nur zaehlen (Vorschau), apply=1 -> wirklich ausblenden."""
     _require_admin(token)
     rows = _exec(
-        f"SELECT id, data, comment FROM photos WHERE hidden={_FALSE} ORDER BY created ASC, id ASC",
+        f"SELECT id, data, comment FROM photos WHERE hidden={_FALSE} AND (kind IS NULL OR kind='photo') "
+        f"ORDER BY created ASC, id ASC",
         (), "all",
     ) or []
     groups: dict = {}
@@ -792,7 +900,9 @@ def album_photos(request: Request):
     return {
         "phases": [{"key": k, "label": PHASE_LABELS[k]} for k in PHASE_ORDER + ["weitere"]],
         "photos": [
-            {"id": r[0], "url": f"/photo/{r[0]}", "comment": r[1] or "", "phase": _phase_key(r[2])}
+            {"id": r[0], "comment": r[1] or "", "phase": _phase_key(r[2]),
+             "kind": (r[4] or "photo"),
+             "url": (f"/media/{r[0]}" if r[4] == "video" else f"/photo/{r[0]}")}
             for r in rows
         ],
         "count": len(rows),
@@ -818,10 +928,13 @@ def album_zip(request: Request, ids: str = Query(""), token: str = Query("")):
     try:
         with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as z:  # JPEGs sind schon komprimiert
             for i, r in enumerate(rows, 1):
-                data = db_photo_full(r[0]) or db_photo(r[0])   # volle Aufloesung, Fallback Anzeige-Foto
+                if r[4] == "video":
+                    data = db_photo_full(r[0]); ext = _ext_for_mime(r[5])
+                else:
+                    data = db_photo_full(r[0]) or db_photo(r[0]); ext = "jpg"   # volle Aufloesung, Fallback Anzeige-Foto
                 if data is None:
                     continue
-                z.writestr(f"{i:03d}_{_phase_key(r[2])}.jpg", data)
+                z.writestr(f"{i:03d}_{_phase_key(r[2])}.{ext}", data)
         tmp.close()
     except Exception:
         tmp.close()

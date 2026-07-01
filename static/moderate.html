@@ -59,7 +59,7 @@
 
   .card{background:#161c27; border:1px solid #232c3a; border-radius:16px; padding:12px; margin-bottom:14px}
   .card .pic{position:relative; border-radius:12px; overflow:hidden; background:#000; aspect-ratio:16/10}
-  .card .pic img{width:100%; height:100%; object-fit:contain; display:block}
+  .card .pic img, .card .pic video{width:100%; height:100%; object-fit:contain; display:block; background:#000}
   .card .pic .pos{position:absolute; left:8px; top:8px; background:rgba(0,0,0,.6); color:#fff; font-size:12px;
     font-weight:800; padding:4px 10px; border-radius:999px; backdrop-filter:blur(6px)}
   .card textarea{width:100%; margin-top:10px; border:1px solid #2b3546; border-radius:11px; padding:10px 12px;
@@ -306,8 +306,11 @@ function card(p){
   const el = document.createElement('div'); el.className='card'; el.dataset.id=p.id;
   const aiHint = p.category ? (p.catSource==='manual' ? '' : ' <span class="ai">· KI-Vorschlag</span>') : ' <span class="ai">· wird kategorisiert …</span>';
   const catBtns = PHASES.map(k=>`<button class="cat-btn${p.category===k?' active':''}" data-cat="${k}">${CAT_SHORT[k]||k}</button>`).join('');
+  const pic = p.kind==='video'
+    ? `<video src="${p.url}" preload="metadata" muted playsinline controls></video>`
+    : `<img src="${p.url}" loading="lazy" alt="">`;
   el.innerHTML = `
-    <div class="pic"><span class="pos"></span><img src="${p.url}" loading="lazy" alt=""></div>
+    <div class="pic"><span class="pos"></span>${pic}</div>
     <div class="cat-label">Phase${aiHint}</div>
     <div class="cats">${catBtns}</div>
     <textarea maxlength="280" placeholder="Kommentar (erscheint auf dem Fernseher)…"></textarea>

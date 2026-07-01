@@ -205,6 +205,7 @@ def ensure_schema():
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS data_bg BYTEA",
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS category TEXT",
             "ALTER TABLE photos ADD COLUMN IF NOT EXISTS cat_source TEXT",  # ai | ai_fail | manual
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS kind TEXT",        # 'video' -> vom Scoring/Backup ausschliessen
         ):
             c.execute(ddl)
         c.commit()
@@ -228,7 +229,7 @@ def run_scoring() -> int:
     with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
         rows = c.execute(
             "SELECT id, data, comment FROM photos WHERE scored=FALSE AND hidden=FALSE "
-            "ORDER BY created ASC LIMIT %s",
+            "AND (kind IS NULL OR kind='photo') ORDER BY created ASC LIMIT %s",
             (SCORE_BATCH,),
         ).fetchall()
     done = 0
@@ -270,7 +271,8 @@ def maybe_rescore():
             row = c.execute("SELECT value FROM settings WHERE key='scoring_version'").fetchone()
             cur = row[0] if row else "0"
             if cur != SCORING_VERSION:
-                n = c.execute("UPDATE photos SET scored=FALSE WHERE hidden=FALSE AND comment <> ''").rowcount
+                n = c.execute("UPDATE photos SET scored=FALSE WHERE hidden=FALSE AND comment <> '' "
+                              "AND (kind IS NULL OR kind='photo')").rowcount
                 c.execute(
                     "INSERT INTO settings (key, value) VALUES ('scoring_version', %s) "
                     "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
@@ -289,7 +291,7 @@ def run_categorization() -> int:
     with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
         rows = c.execute(
             "SELECT id, data FROM photos WHERE category IS NULL AND hidden=FALSE "
-            "ORDER BY created ASC LIMIT %s",
+            "AND (kind IS NULL OR kind='photo') ORDER BY created ASC LIMIT %s",
             (CAT_BATCH,),
         ).fetchall()
     done = 0
@@ -356,7 +358,8 @@ def maybe_recategorize():
 def run_once(svc) -> int:
     with psycopg.connect(DATABASE_URL, connect_timeout=15) as c:
         rows = c.execute(
-            "SELECT id, data, comment FROM photos WHERE backed_up=FALSE ORDER BY created ASC LIMIT %s",
+            "SELECT id, data, comment FROM photos WHERE backed_up=FALSE "
+            "AND (kind IS NULL OR kind='photo') ORDER BY created ASC LIMIT %s",
             (BATCH,),
         ).fetchall()
     done = 0
