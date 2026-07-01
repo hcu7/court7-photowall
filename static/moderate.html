@@ -154,6 +154,14 @@
       </div>
       <a id="album-link" href="/album" target="_blank" rel="noopener">Album öffnen ↗</a>
     </div>
+    <div class="album-admin">
+      <b>🔀 Auto-Einsortierung neuer Uploads</b> <span id="autocat-status" class="muted"></span>
+      <div class="row2" style="margin-top:8px">
+        <button class="btn" id="btn-autocat"></button>
+        <button class="btn hidden" id="btn-recat" style="background:#1f6b4d;flex:0 0 auto"></button>
+      </div>
+      <div class="muted" style="margin-top:7px;font-size:12.5px">AUS = neue Fotos &amp; Videos landen erstmal in „Weitere". AN = die KI sortiert sie in die Phasen ein.</div>
+    </div>
     <div class="muted" style="margin-bottom:14px">Fotos sind <b>chronologisch</b> (Upload-Zeit) sortiert. Pro Foto die <b>Phase</b> wählen (KI-Vorschlag ist vorausgewählt — 1 Klick ändert ihn). Kommentar bearbeiten + 💾 · 🗑 entfernt vom Fernseher (bleibt gesichert).</div>
     <div id="list"></div>
     <div class="empty hidden" id="empty">Noch keine Fotos.</div>
@@ -219,6 +227,7 @@ async function load(){
   }catch(e){ $('#status').textContent='Fehler beim Laden'; }
 }
 
+let AUTOCAT = false;
 function renderAlbumAdmin(data){
   const set = !!data.albumSet;
   $('#album-status').textContent = set ? '· Passwort gesetzt ✓' : '· noch kein Passwort gesetzt';
@@ -228,7 +237,27 @@ function renderAlbumAdmin(data){
   const link = $('#album-link');
   link.href = host ? ('https://'+host) : '/album';
   link.textContent = (host ? host : 'Album') + ' öffnen ↗';
+  // Auto-Einsortierungs-Schalter
+  AUTOCAT = !!data.autoCategorize;
+  $('#autocat-status').textContent = AUTOCAT ? '· AN (KI sortiert ein)' : '· AUS (alles nach „Weitere")';
+  $('#autocat-status').style.color = AUTOCAT ? '#34d399' : '#e0a04a';
+  $('#btn-autocat').textContent = AUTOCAT ? 'Auf AUS stellen' : 'Auf AN stellen';
+  const pend = data.pendingCat || 0;
+  const rb = $('#btn-recat');
+  rb.classList.toggle('hidden', pend < 1);
+  rb.textContent = pend > 0 ? `▶ ${pend} zurückgestellte einsortieren` : '';
 }
+$('#btn-autocat').addEventListener('click', async ()=>{
+  const on = AUTOCAT ? 0 : 1;
+  await fetch('/api/admin/autocat?on='+on+'&token='+q(TOKEN), {method:'POST'});
+  load();
+});
+$('#btn-recat').addEventListener('click', async ()=>{
+  if(!confirm('Alle zurückgestellten Uploads jetzt von der KI in die Phasen einsortieren lassen?\n\n(Läuft im Hintergrund, dauert ein paar Minuten.)')) return;
+  const r = await (await fetch('/api/admin/recat-pending?token='+q(TOKEN), {method:'POST'})).json();
+  alert((r.requeued||0)+' Uploads werden neu einsortiert.');
+  load();
+});
 $('#btn-album-pw').addEventListener('click', async ()=>{
   const pw = $('#album-pw').value.trim();
   if(pw.length < 6){ alert('Bitte ein Passwort mit mindestens 6 Zeichen.'); return; }

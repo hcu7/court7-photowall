@@ -255,10 +255,12 @@ def setting_set(key: str, value: str):
         _exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
 
 
-def db_insert(pid: str, data: bytes, data_full: bytes, data_bg: bytes, comment: str, sort: float):
+def db_insert(pid: str, data: bytes, data_full: bytes, data_bg: bytes, comment: str, sort: float,
+              category=None, cat_source=None):
     _exec(
-        "INSERT INTO photos (id, data, data_full, data_bg, comment, sort, created) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (pid, data, data_full, data_bg, comment, sort, sort),
+        "INSERT INTO photos (id, data, data_full, data_bg, comment, sort, created, category, cat_source) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (pid, data, data_full, data_bg, comment, sort, sort, category, cat_source),
     )
 
 
@@ -391,6 +393,10 @@ def _album_rows():
 STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="Court 7 Photowall")
 init_db()
+# Auto-Einsortierung neuer Uploads: einmalig auf AUS initialisieren (Hauke, 2026-07-01 "erstmal unter weitere").
+# Danach per Schalter in /moderate steuerbar; bestehende Einstellung wird nicht überschrieben.
+if setting_get("auto_categorize", "") == "":
+    setting_set("auto_categorize", "0")
 
 
 class OrderIn(BaseModel):
@@ -559,7 +565,10 @@ async def upload(file: UploadFile = File(...), comment: str = Form("")):
         raise HTTPException(status_code=413, detail="Bild zu groß (Pixelmenge)")
     except Exception:
         raise HTTPException(status_code=400, detail="Kein gültiges Bild")
-    db_insert(pid, data, data_full, data_bg, text, sort)
+    if setting_get("auto_categorize", "1") == "1":
+        db_insert(pid, data, data_full, data_bg, text, sort)                       # category NULL -> Worker sortiert ein
+    else:  # Auto-Einsortierung pausiert: erstmal nach 'weitere', als 'pending_cat' (später nachholbar)
+        db_insert(pid, data, data_full, data_bg, text, sort, category="weitere", cat_source="pending_cat")
     return {"id": pid, "kind": "photo", "url": f"/photo/{pid}", "comment": text}
 
 
@@ -586,6 +595,8 @@ def admin_photos(token: str = Query("")):
         "phases": [{"key": k, "label": PHASE_LABELS[k]} for k in PHASE_ORDER],
         "albumSet": bool(setting_get("album_pw", "")),
         "albumHost": ALBUM_HOST,
+        "autoCategorize": setting_get("auto_categorize", "1") == "1",
+        "pendingCat": int((_exec(f"SELECT COUNT(*) FROM photos WHERE cat_source='pending_cat' AND hidden={_FALSE}", (), "one") or [0])[0]),
     }
 
 
@@ -635,6 +646,23 @@ def admin_dedupe(token: str = Query(""), apply: int = Query(0)):
         for pid in to_hide:
             db_hide(pid)
     return {"ok": True, "applied": bool(apply), "groups": dup_groups, "removed": len(to_hide)}
+
+
+@app.post("/api/admin/autocat")
+def admin_autocat(on: int = Query(1), token: str = Query("")):
+    """Schalter: neue Uploads automatisch per KI in Phasen einsortieren (1) oder erstmal nach 'weitere' (0)."""
+    _require_admin(token)
+    setting_set("auto_categorize", "1" if on else "0")
+    return {"ok": True, "auto": bool(on)}
+
+
+@app.post("/api/admin/recat-pending")
+def admin_recat_pending(token: str = Query("")):
+    """Zurückgestellte Uploads (cat_source='pending_cat') zur KI-Einsortierung freigeben (category -> NULL)."""
+    _require_admin(token)
+    n = (_exec(f"SELECT COUNT(*) FROM photos WHERE cat_source='pending_cat' AND hidden={_FALSE}", (), "one") or [0])[0]
+    _exec(f"UPDATE photos SET category=NULL, cat_source=NULL WHERE cat_source='pending_cat' AND hidden={_FALSE}")
+    return {"ok": True, "requeued": int(n)}
 
 
 @app.post("/api/photos/{pid}/hide")
