@@ -89,7 +89,7 @@ ID_RE = re.compile(r"^\d{13,}-[a-f0-9]{8}$")
 # Phasen des Abends (chronologische Reihenfolge) — gemeinsam von Worker, Moderate und Album genutzt.
 PHASE_ORDER = ["geburtstag", "werdersee", "preparty", "auftritt", "party", "breakfast"]
 PHASE_LABELS = {
-    "geburtstag": "Donnerstag · Geburtstagsmorgen",
+    "geburtstag": "Donnerstag",
     "werdersee": "Werdersee",
     "preparty": "Goldene Stunde",
     "auftritt": "Musikalische Einlage",
